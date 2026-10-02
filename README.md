@@ -254,9 +254,16 @@ The language table and the Material theme are generated from pinned dev dependen
 `material-icon-theme`, `vscode-symbols`). Bump one on purpose, run `bun run gen`, and commit the regenerated files, because
 `bun run gen:check` fails when they are stale.
 
-`develop` is the working branch. Changes reach `main` by pull request, and a release is a `v*` tag on a commit that
-is already on `main`. The release workflow refuses any other tag, runs the full check, and publishes to npm through
-trusted publishing, with no token stored in the repository.
+`develop` is the working branch. Changes reach `main` by pull request, and a pull request needs green checks (the
+full check, CodeQL, the dependency audit, dependency review and the workflow audit) plus a code owner approval
+of its `approve` job. A release is a `v*` tag on a commit that is already on `main`. The publish job refuses any
+other tag, waits for approval of the `release` environment, runs the full check, and publishes to npm through
+trusted publishing with provenance, with no token stored in the repository.
+
+`bun install` points git at `.githooks`: `commit-msg` enforces Conventional Commits, `pre-commit` runs Biome on
+staged files, the typecheck, the generated data check and the dependency guard, and `pre-push` runs the full
+check and refuses a push to `main`. `bun run review` lists what to review with `ocr` in delegate mode. See
+[CONTRIBUTING.md](CONTRIBUTING.md) and [SECURITY.md](SECURITY.md).
 
 ## License
 

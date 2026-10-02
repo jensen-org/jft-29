@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Governance: code owners, a pull request template, an approval gate on pull requests and on releases, CodeQL, a dependency audit, dependency review, a workflow audit and a security policy. Dependabot is removed.
+- Git hooks for commit messages, commits and pushes, and an `ocr` review script.
+- Vitest 5, which clears an advisory in a development dependency.
+- The publish job no longer restores build caches.
+
 ## 0.2.0
 
 - Colors follow the host `color-scheme` through `light-dark()` instead of `prefers-color-scheme`, so a dark system with a light page no longer renders near white text on white.
