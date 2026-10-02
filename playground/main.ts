@@ -13,7 +13,9 @@ const memory = createMemoryProvider(
 );
 const log = document.getElementById("log") as HTMLElement;
 const source = shallowRef<Source>({ provider: memory, root: "/p" });
-const variant = ref<"dark" | "light">("dark");
+const variant = ref<"dark" | "light">(
+  window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
+);
 const { iconTheme, iconUrl } = materialIcons("/icons");
 let tree: Tree | null = null;
 

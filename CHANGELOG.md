@@ -2,6 +2,7 @@
 
 ## Unreleased
 
+- Colors follow the host `color-scheme` through `light-dark()` instead of `prefers-color-scheme`, so a dark system with a light page no longer renders near white text on white.
 - Icon theme variants overlay the base theme one entry at a time, so `light` no longer drops every name it does not list. Root folders resolve through `rootFolderNames` and `rootFolderNamesExpanded`.
 - The language table is generated from GitHub Linguist data and resolves to VS Code language ids.
 - Language lookups ignore inherited object keys, so a file named `constructor` has no language.

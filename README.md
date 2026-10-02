@@ -217,6 +217,10 @@ request: confirm it, then call `tree.remove(path)`. The toolbar renders only whe
 Theme with CSS variables: `--jft-fg`, `--jft-fg-muted`, `--jft-hover`, `--jft-selected`, `--jft-focus`,
 `--jft-border`, `--jft-font` and the `--jft-tone-*` set.
 
+Light and dark colors follow the CSS `color-scheme` of the page, through `light-dark()`, not the operating system
+preference. Set `color-scheme: light dark` on `:root` to follow the system, or `light` or `dark` on any parent to
+force one. A host that paints its own background should declare the scheme it paints.
+
 ## Keyboard
 
 | Key | Action |

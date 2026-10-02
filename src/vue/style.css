@@ -1,6 +1,6 @@
 .jft {
-  --jft-fg: #1f2328;
-  --jft-fg-muted: #656d76;
+  --jft-fg: light-dark(#1f2328, #e6edf3);
+  --jft-fg-muted: light-dark(#656d76, #9198a1);
   --jft-bg: transparent;
   --jft-hover: rgb(128 128 128 / 0.12);
   --jft-selected: rgb(56 132 255 / 0.2);
@@ -9,11 +9,11 @@
   --jft-drop: rgb(56 132 255 / 0.28);
   --jft-border: rgb(128 128 128 / 0.25);
   --jft-font: inherit;
-  --jft-tone-added: #2da44e;
-  --jft-tone-modified: #bf8700;
-  --jft-tone-removed: #cf222e;
+  --jft-tone-added: light-dark(#2da44e, #3fb950);
+  --jft-tone-modified: light-dark(#bf8700, #d29922);
+  --jft-tone-removed: light-dark(#cf222e, #f85149);
   --jft-tone-ignored: #8c959f;
-  --jft-tone-info: #0969da;
+  --jft-tone-info: light-dark(#0969da, #58a6ff);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -22,17 +22,6 @@
   background: var(--jft-bg);
   font: var(--jft-font);
   font-size: 13px;
-}
-
-@media (prefers-color-scheme: dark) {
-  .jft {
-    --jft-fg: #e6edf3;
-    --jft-fg-muted: #9198a1;
-    --jft-tone-added: #3fb950;
-    --jft-tone-modified: #d29922;
-    --jft-tone-removed: #f85149;
-    --jft-tone-info: #58a6ff;
-  }
 }
 
 .jft-toolbar {
