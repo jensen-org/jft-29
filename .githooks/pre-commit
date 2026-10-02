@@ -1,0 +1,11 @@
+#!/bin/sh
+set -eu
+branch=$(git symbolic-ref --short -q HEAD || true)
+if [ "$branch" = "main" ]; then
+  echo "pre-commit: main changes through a pull request, commit on develop or a topic branch" >&2
+  exit 1
+fi
+bun run lint:staged
+bun run typecheck
+bun run gen:check
+bun run deps

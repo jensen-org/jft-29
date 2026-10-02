@@ -1,0 +1,5 @@
+* @pallandir
+/.github/ @pallandir
+/.githooks/ @pallandir
+/scripts/ @pallandir
+/package.json @pallandir
