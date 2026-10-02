@@ -1,5 +1,5 @@
-import { extensionsOf } from "../core/icons";
-import type { TreePlugin } from "../core/types";
+import { extensionsOf } from "../core/icons.js";
+import type { TreePlugin } from "../core/types.js";
 
 export interface LanguageTable {
   fileNames?: Record<string, string>;

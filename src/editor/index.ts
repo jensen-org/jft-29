@@ -1,5 +1,5 @@
-import type { Tree } from "../core/model";
-import type { RevealOptions } from "../core/types";
+import type { Tree } from "../core/model.js";
+import type { RevealOptions } from "../core/types.js";
 
 type Followed = Pick<Tree, "reveal" | "on">;
 

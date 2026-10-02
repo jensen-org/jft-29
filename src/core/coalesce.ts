@@ -1,5 +1,5 @@
-import { isStrictlyWithin } from "./paths";
-import type { FsEvent } from "./types";
+import { isStrictlyWithin } from "./paths.js";
+import type { FsEvent } from "./types.js";
 
 export function coalesce(batch: FsEvent[]): FsEvent[] {
   const ordered: (FsEvent | null)[] = [];

@@ -1,4 +1,4 @@
-import type { EntryKind } from "./types";
+import type { EntryKind } from "./types.js";
 
 export interface IconThemeManifest {
   iconDefinitions?: Record<string, unknown>;

@@ -1,5 +1,5 @@
-import { basename, dirname, isWithin, join, replacePrefix } from "./paths";
-import type { Disposable, EntryKind, FsEvent, TreeProvider } from "./types";
+import { basename, dirname, isWithin, join, replacePrefix } from "./paths.js";
+import type { Disposable, EntryKind, FsEvent, TreeProvider } from "./types.js";
 
 export interface MemoryProvider extends TreeProvider {
   add(path: string, kind?: EntryKind): void;

@@ -1,4 +1,4 @@
-import { coalesce } from "./coalesce";
+import { coalesce } from "./coalesce.js";
 import {
   ancestorsBetween,
   basename,
@@ -8,7 +8,7 @@ import {
   join,
   replacePrefix,
   trimTrailing,
-} from "./paths";
+} from "./paths.js";
 import {
   type Disposable,
   type EditState,
@@ -24,7 +24,7 @@ import {
   type TreeNode,
   type TreeOptions,
   type TreeState,
-} from "./types";
+} from "./types.js";
 
 type Listener<T> = (payload: T) => void;
 

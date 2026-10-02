@@ -45,9 +45,9 @@
     "typecheck": "vue-tsc --noEmit",
     "lint": "biome check .",
     "test": "vitest run",
-    "build": "vite build && vue-tsc -p tsconfig.build.json",
+    "build": "vite build && vue-tsc -p tsconfig.build.json && node scripts/finish-types.mjs",
     "deps": "node scripts/check-deps.mjs",
-    "package": "publint && attw --pack . --profile esm-only",
+    "package": "publint && attw --pack . --profile esm-only --exclude-entrypoints ./style.css",
     "check": "bun run typecheck && bun run lint && bun run test && bun run build && bun run deps && bun run package",
     "dev": "vite playground"
   },
