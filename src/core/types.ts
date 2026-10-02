@@ -3,6 +3,15 @@ export type EntryKind = "file" | "dir";
 export interface Entry {
   name: string;
   kind: EntryKind;
+  ignored?: boolean;
+}
+
+export type GitStatus = "modified" | "added" | "deleted" | "renamed" | "untracked" | "conflicted";
+
+export interface GitEntry {
+  path: string;
+  status: GitStatus;
+  staged?: boolean;
 }
 
 export type FsEvent =
@@ -35,6 +44,7 @@ export interface TreeNode {
   children: string[] | null;
   state: LoadState;
   pending: boolean;
+  ignored: boolean;
   languageId?: string;
 }
 
@@ -49,6 +59,10 @@ export interface Row {
   expanded: boolean;
   loading: boolean;
   error: boolean;
+  status: GitStatus | null;
+  staged: boolean;
+  inherited: GitStatus | null;
+  ignored: boolean;
 }
 
 export interface TreePlugin {
@@ -66,7 +80,8 @@ export type TreeErrorCode =
   | "exists"
   | "unsupported"
   | "outside-root"
-  | "missing";
+  | "missing"
+  | "git";
 
 export class TreeError extends Error {
   readonly code: TreeErrorCode;
@@ -121,6 +136,7 @@ export interface TreeEvents {
   removed: { path: string };
   deleteRequest: { paths: string[] };
   changed: { path: string };
+  watched: undefined;
 }
 
 export interface KeyLike {
@@ -139,6 +155,7 @@ export interface TreeOptions {
   nest?: (children: TreeNode[]) => Map<string, string[]>;
   compactFolders?: boolean;
   multiSelect?: boolean;
+  hideIgnored?: boolean;
   plugins?: TreePlugin[];
   schedule?: (run: () => void) => void;
 }

@@ -35,6 +35,7 @@ lives on disk, changes without asking, and is far larger than what is on screen.
 | Writes | Create, rename, move, delete with rollback, cancel support and typed errors |
 | Structure | Compact folders, file nesting hook, sort, filter, selection with ranges |
 | Icons | Any VS Code file icon theme manifest, resolved the way VS Code resolves it, plus an opt in Material theme |
+| Git | Per file status with a letter and tone, folders take the worst status below them, ignored rows dim or hide, all fed by your own source |
 | Languages | Optional plugin that gives each file a VS Code language id from its name and extension |
 | Accessibility | Roles, levels, set sizes, `aria-activedescendant`, full keyboard, reduced motion |
 | Scale | A virtualized flat list, so thousands of rows stay smooth |
@@ -53,6 +54,7 @@ npm install @jensen-org/jft-29
 | `@jensen-org/jft-29` | The core: `createTree`, the provider types, the icon resolver, a memory provider for tests |
 | `@jensen-org/jft-29/vue` | The `FileTree` component |
 | `@jensen-org/jft-29/editor` | `followActivePath` and `followMonaco`, with no editor import |
+| `@jensen-org/jft-29/git` | `attachGit`, which keeps the tree's git status in sync with a source you provide |
 | `@jensen-org/jft-29/languages` | The optional language plugin |
 | `@jensen-org/jft-29/icons/material` | The optional Material icon theme and its svg files |
 | `@jensen-org/jft-29/icons/symbols` | The optional Symbols icon theme, outline folders with small accents, and its svg files |
@@ -181,6 +183,37 @@ bundler does not copy them, serve `node_modules/@jensen-org/jft-29/dist/icons/ma
 public folder or a CDN, and pass its url: `symbolsIcons("/icons/symbols")`. The theme data and svg files are generated from
 `material-icon-theme` and `vscode-symbols` (both MIT, each license shipped next to its svg files).
 
+## Git
+
+The core never runs git. The host says which paths changed and which are ignored, and the tree draws it.
+
+```ts
+import { attachGit } from "@jensen-org/jft-29/git";
+
+const stop = attachGit(tree, {
+  read: async () => [
+    { path: "/project/src/a.ts", status: "modified", staged: true },
+    { path: "/project/notes.md", status: "untracked" },
+  ],
+  watch: (onChange) => api.onGitChange(onChange),
+});
+```
+
+- **Status** is `modified`, `added`, `deleted`, `renamed`, `untracked` or `conflicted`, with a `staged` flag.
+  `tree.setGit(entries)` replaces the whole set, and the rows carry `status`, `staged`, `inherited` and `ignored`.
+- **Folders** take the worst status below them, in the order conflicted, deleted, modified, added, renamed,
+  untracked. A deleted file has no row but still tints its folder. Ignored files never count.
+- **Ignored** comes from `readDir`: return `ignored: true` on an entry and everything under it is ignored too, the
+  way git treats an ignored folder. Ignored rows are dimmed (`--jft-ignored-opacity`), or removed with
+  `hideIgnored: true`, which `tree.configure` changes live. A revealed path stays visible.
+- **Renames and moves** carry the status along. A rescan re-reads every open folder, so a changed `.gitignore`
+  only needs the host to emit `{ type: "rescan", path: root }`.
+- **`attachGit`** reads once, then again after the source calls `onChange`, after the watcher applies file events
+  and after the tree itself creates, renames, moves or deletes. Refreshes are debounced (`debounce`, default 150 ms),
+  never overlap, and a failed read is emitted as a `TreeError` with the code `git`.
+- **Badges** are the VS Code letters M, A, D, R, U and C. The `badge` slot receives `status` and `staged`, so
+  you can attach a tooltip.
+
 ## Languages
 
 ```ts
@@ -211,8 +244,8 @@ plugin's `extensions` and `fileNames` options for anything project specific.
 
 **Exposed:** `tree`, `scrollToPath`, `focus`.
 
-`decorations` is a `Map<path, { badge, tone, hint }>`, for git status, problems or anything else. A decorated file
-puts a dot on every folder above it. The library sets no native `title` attributes, so you attach tooltips from
+`decorations` is a `Map<path, { badge, tone, hint }>`, for problems or anything else that is not git. A decorated
+file puts a dot on every folder above it, and a decoration wins over a git badge on the same path. The library sets no native `title` attributes, so you attach tooltips from
 the `badge` slot. `contextmenu` hands you the event and the selected paths, and you render the menu. Deleting is a
 request: confirm it, then call `tree.remove(path)`. The toolbar renders only when you pass `actions`, `menu` or a
 `toolbar` slot, and there is no built in title.
@@ -238,8 +271,8 @@ force one. A host that paints its own background should declare the scheme it pa
 
 ## Not included
 
-Icon packs other than Material, a git or problems source, a context menu, search, a gitignore parser, multi root workspaces and
-variable row heights. They are inputs or events, so you stay in control.
+Icon packs other than Material, a problems source, a context menu, search, multi root workspaces and variable row
+heights. The package never reads git or parses a `.gitignore`: your host already knows both, and it hands the answers over. They are inputs or events, so you stay in control.
 
 ## Develop
 

@@ -2,6 +2,11 @@
 
 ## Unreleased
 
+- Git support. `tree.setGit` and `attachGit` from `@jensen-org/jft-29/git` take statuses from the host. Rows carry `status`, `staged`, `inherited` and `ignored`, folders take the worst status below them, and a rename or move carries the status along.
+- `readDir` entries accept `ignored`. Ignored rows and everything under them are dimmed, and `hideIgnored` removes them.
+- New tone variables `--jft-tone-untracked`, `--jft-tone-conflicted`, `--jft-tone-deleted`, `--jft-tone-renamed` and `--jft-ignored-opacity`. `--jft-tone-ignored` now follows the color scheme.
+- The `badge` slot receives `status` and `staged`, and `decoration` is optional.
+- A `watched` event after a batch of file events, and `tree.report` to emit a typed error from a host.
 - Governance: code owners, a pull request template, an approval gate on pull requests and on releases, CodeQL, a dependency audit, dependency review, a workflow audit and a security policy. Dependabot is removed.
 - Git hooks for commit messages, commits and pushes, and an `ocr` review script.
 - Vitest 5, which clears an advisory in a development dependency.

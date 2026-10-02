@@ -27,6 +27,10 @@
       "types": "./dist/types/editor/index.d.ts",
       "import": "./dist/editor.js"
     },
+    "./git": {
+      "types": "./dist/types/git/index.d.ts",
+      "import": "./dist/git.js"
+    },
     "./languages": {
       "types": "./dist/types/languages/index.d.ts",
       "import": "./dist/languages.js"

@@ -9,7 +9,17 @@ describe("stylesheet theming", () => {
   });
 
   it("derives text and tone colors from light-dark", () => {
-    for (const name of ["--jft-fg", "--jft-fg-muted", "--jft-tone-added", "--jft-tone-info"]) {
+    for (const name of [
+      "--jft-fg",
+      "--jft-fg-muted",
+      "--jft-tone-added",
+      "--jft-tone-info",
+      "--jft-tone-ignored",
+      "--jft-tone-untracked",
+      "--jft-tone-conflicted",
+      "--jft-tone-deleted",
+      "--jft-tone-renamed",
+    ]) {
       expect(css).toMatch(new RegExp(`${name}:\\s*light-dark\\(`));
     }
   });

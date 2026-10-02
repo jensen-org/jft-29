@@ -239,3 +239,85 @@ describe("<FileTree>", () => {
     expect(wrapper.find("input.jft-edit").exists()).toBe(false);
   });
 });
+
+describe("git status", () => {
+  async function withGit(
+    entries: Parameters<ReturnType<typeof createTree>["setGit"]>[0],
+    ignored: string[] = [],
+  ) {
+    const provider = createMemoryProvider(FILES, "/p");
+    const read = provider.readDir.bind(provider);
+    provider.readDir = async (path) =>
+      (await read(path)).map((entry) =>
+        ignored.includes(`${path}/${entry.name}`) ? { ...entry, ignored: true } : entry,
+      );
+    const tree = createTree({ provider, root: "/p", schedule: (run) => run() });
+    await tree.start();
+    await tree.expand("/p/src");
+    tree.setGit(entries);
+    const wrapper = mount(FileTree, { props: { tree }, attachTo: document.body });
+    await flushPromises();
+    return { tree, wrapper };
+  }
+
+  it("draws the status letter and tone on a row", async () => {
+    const { wrapper } = await withGit([
+      { path: "/p/src/a.ts", status: "modified" },
+      { path: "/p/README.md", status: "untracked" },
+      { path: "/p/docs/x.md", status: "conflicted" },
+    ]);
+    const row = wrapper.find('[data-path="/p/src/a.ts"]');
+    expect(row.find(".jft-badge").text()).toBe("M");
+    expect(row.attributes("data-tone")).toBe("modified");
+    expect(wrapper.find('[data-path="/p/README.md"] .jft-badge').text()).toBe("U");
+  });
+
+  it("marks a staged row", async () => {
+    const { wrapper } = await withGit([{ path: "/p/src/a.ts", status: "added", staged: true }]);
+    expect(wrapper.find('[data-path="/p/src/a.ts"]').attributes("data-staged")).toBe("true");
+  });
+
+  it("tints a folder with the worst status below it and puts a dot in that tone", async () => {
+    const { wrapper } = await withGit([{ path: "/p/src/a.ts", status: "conflicted" }]);
+    const folder = wrapper.find('[data-path="/p/src"]');
+    expect(folder.attributes("data-tone")).toBe("conflicted");
+    expect(folder.find(".jft-dot").attributes("data-tone")).toBe("conflicted");
+    expect(folder.find(".jft-badge").exists()).toBe(false);
+  });
+
+  it("dims ignored rows and gives them no badge", async () => {
+    const { wrapper } = await withGit([], ["/p/docs"]);
+    const row = wrapper.find('[data-path="/p/docs"]');
+    expect(row.attributes("data-ignored")).toBe("true");
+    expect(row.attributes("data-tone")).toBe("ignored");
+    expect(row.find(".jft-badge").exists()).toBe(false);
+    expect(wrapper.find('[data-path="/p/src"]').attributes("data-ignored")).toBeUndefined();
+  });
+
+  it("lets a decoration override the git badge", async () => {
+    const provider = createMemoryProvider(FILES, "/p");
+    const tree = createTree({ provider, root: "/p", schedule: (run) => run() });
+    await tree.start();
+    tree.setGit([{ path: "/p/README.md", status: "modified" }]);
+    const decorations = new Map([["/p/README.md", { badge: "!", tone: "removed" }]]);
+    const wrapper = mount(FileTree, { props: { tree, decorations }, attachTo: document.body });
+    await flushPromises();
+    const row = wrapper.find('[data-path="/p/README.md"]');
+    expect(row.find(".jft-badge").text()).toBe("!");
+    expect(row.attributes("data-tone")).toBe("removed");
+  });
+
+  it("passes the status to the badge slot", async () => {
+    const provider = createMemoryProvider(FILES, "/p");
+    const tree = createTree({ provider, root: "/p", schedule: (run) => run() });
+    await tree.start();
+    tree.setGit([{ path: "/p/README.md", status: "added" }]);
+    const wrapper = mount(FileTree, {
+      props: { tree },
+      slots: { badge: '<template #badge="{ status }"><i class="mine">{{ status }}</i></template>' },
+      attachTo: document.body,
+    });
+    await flushPromises();
+    expect(wrapper.find('[data-path="/p/README.md"] .mine').text()).toBe("added");
+  });
+});

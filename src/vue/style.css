@@ -12,7 +12,12 @@
   --jft-tone-added: light-dark(#2da44e, #3fb950);
   --jft-tone-modified: light-dark(#bf8700, #d29922);
   --jft-tone-removed: light-dark(#cf222e, #f85149);
-  --jft-tone-ignored: #8c959f;
+  --jft-tone-deleted: light-dark(#cf222e, #f85149);
+  --jft-tone-untracked: light-dark(#1a7f64, #56d4a7);
+  --jft-tone-renamed: light-dark(#0969da, #58a6ff);
+  --jft-tone-conflicted: light-dark(#bc4c00, #f0883e);
+  --jft-tone-ignored: light-dark(#8c959f, #6e7681);
+  --jft-ignored-opacity: 0.55;
   --jft-tone-info: light-dark(#0969da, #58a6ff);
   display: flex;
   flex-direction: column;
@@ -174,6 +179,10 @@
   color: var(--jft-tone-ignored);
 }
 
+.jft-row[data-ignored] {
+  opacity: var(--jft-ignored-opacity);
+}
+
 .jft-twist {
   display: inline-flex;
   flex: none;
@@ -236,6 +245,26 @@
   color: var(--jft-tone-removed);
 }
 
+.jft-badge[data-tone="deleted"],
+.jft-label[data-tone="deleted"] {
+  color: var(--jft-tone-deleted);
+}
+
+.jft-badge[data-tone="untracked"],
+.jft-label[data-tone="untracked"] {
+  color: var(--jft-tone-untracked);
+}
+
+.jft-badge[data-tone="renamed"],
+.jft-label[data-tone="renamed"] {
+  color: var(--jft-tone-renamed);
+}
+
+.jft-badge[data-tone="conflicted"],
+.jft-label[data-tone="conflicted"] {
+  color: var(--jft-tone-conflicted);
+}
+
 .jft-badge[data-tone="ignored"] {
   color: var(--jft-tone-ignored);
 }
@@ -251,6 +280,26 @@
   margin-right: 8px;
   border-radius: 50%;
   background: var(--jft-tone-modified);
+}
+
+.jft-dot[data-tone="added"] {
+  background: var(--jft-tone-added);
+}
+
+.jft-dot[data-tone="deleted"] {
+  background: var(--jft-tone-deleted);
+}
+
+.jft-dot[data-tone="untracked"] {
+  background: var(--jft-tone-untracked);
+}
+
+.jft-dot[data-tone="renamed"] {
+  background: var(--jft-tone-renamed);
+}
+
+.jft-dot[data-tone="conflicted"] {
+  background: var(--jft-tone-conflicted);
 }
 
 .jft-spinner {
