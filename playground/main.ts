@@ -1,13 +1,20 @@
-import { createApp, h } from "vue";
-import { createMemoryProvider, type Tree } from "../src/index.js";
+import { createApp, h, ref, shallowRef } from "vue";
+import { materialIcons } from "../src/icons/material.js";
+import { createMemoryProvider, type Tree, type TreeProvider } from "../src/index.js";
 import { languagePlugin } from "../src/languages/index.js";
 import { FileTree } from "../src/vue/index.js";
+import { openDirectory } from "./directory-provider.js";
 
-const provider = createMemoryProvider(
+type Source = { provider: TreeProvider; root: string };
+
+const memory = createMemoryProvider(
   ["/p/src/a.ts", "/p/src/deep/er/b.ts", "/p/README.md", "/p/docs/guide.md", "/p/package.json"],
   "/p",
 );
 const log = document.getElementById("log") as HTMLElement;
+const source = shallowRef<Source>({ provider: memory, root: "/p" });
+const variant = ref<"dark" | "light">("dark");
+const { iconTheme, iconUrl } = materialIcons("/icons");
 let tree: Tree | null = null;
 
 function write(line: string): void {
@@ -17,35 +24,54 @@ function write(line: string): void {
 createApp({
   render: () =>
     h(FileTree, {
-      provider,
-      root: "/p",
+      key: source.value.root,
+      provider: source.value.provider,
+      root: source.value.root,
       plugins: [languagePlugin()],
+      iconTheme,
+      iconUrl,
+      iconVariant: variant.value,
       compactFolders: true,
       multiSelect: true,
-      actions: [
-        { id: "file", label: "New file", run: () => void tree?.startCreate("/p", "file") },
-        { id: "collapse", label: "Collapse all", run: () => tree?.collapseAll() },
-      ],
+      actions: [{ id: "collapse", label: "Collapse all", run: () => tree?.collapseAll() }],
       onOpen: (event: unknown) => write(`open ${JSON.stringify(event)}`),
       onError: (error: Error) => write(`error ${error.message}`),
-      onDeleteRequest: ({ paths }: { paths: string[] }) => {
-        for (const path of paths) void tree?.remove(path);
-      },
       ref: (instance: unknown) => {
         tree = (instance as { tree: Tree | null } | null)?.tree ?? tree;
       },
     }),
 }).mount("#tree");
 
+const folderButton = document.getElementById("folder") as HTMLButtonElement;
+if (!("showDirectoryPicker" in window)) {
+  folderButton.disabled = true;
+  write("Open folder needs showDirectoryPicker, use Chrome, Edge or Arc");
+}
+folderButton.addEventListener("click", () => {
+  const picker = (
+    window as unknown as { showDirectoryPicker(): Promise<FileSystemDirectoryHandle> }
+  ).showDirectoryPicker;
+  picker.call(window).then(
+    (handle) => {
+      source.value = openDirectory(handle);
+      write(`opened ${handle.name}`);
+    },
+    (error: Error) => write(`error ${error.message}`),
+  );
+});
+document.getElementById("theme")?.addEventListener("click", () => {
+  variant.value = variant.value === "dark" ? "light" : "dark";
+  document.documentElement.style.colorScheme = variant.value;
+});
 document.getElementById("burst")?.addEventListener("click", () => {
   const batch = Array.from({ length: 1000 }, (_, i) => `/p/burst-${i}.txt`);
-  for (const path of batch) provider.add(path);
-  provider.emit(batch.map((path) => ({ type: "add" as const, path, kind: "file" as const })));
+  for (const path of batch) memory.add(path);
+  memory.emit(batch.map((path) => ({ type: "add" as const, path, kind: "file" as const })));
 });
 document.getElementById("atomic")?.addEventListener("click", () => {
   const name = `/p/atomic-${Date.now()}.ts`;
-  provider.add(name);
-  provider.emit([
+  memory.add(name);
+  memory.emit([
     { type: "add", path: "/p/.tmp", kind: "file" },
     { type: "rename", from: "/p/.tmp", to: name, kind: "file" },
   ]);
