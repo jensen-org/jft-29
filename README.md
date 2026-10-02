@@ -245,7 +245,7 @@ variable row heights. They are inputs or events, so you stay in control.
 
 ```sh
 bun install
-bun run dev      # playground with an in memory provider
+bun run dev      # playground: open a real folder, switch icon packs
 bun run check    # typecheck, lint, test, generated data, build, dependency guard, package lint
 bun run gen      # regenerate the language table and the Material theme
 ```
