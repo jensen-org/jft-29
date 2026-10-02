@@ -46,6 +46,31 @@ describe("icon resolver", () => {
     expect(light.resolve({ name: "a.zzz", kind: "file" })).toBe("file-light");
   });
 
+  it("overlays a variant per key instead of replacing whole tables", () => {
+    const light = createIconResolver(manifest, "light");
+    expect(light.resolve({ name: "types.d.ts", kind: "file" })).toBe("typescript-def");
+    expect(light.resolve({ name: "a.test.ts", kind: "file" })).toBe("test");
+    expect(light.resolve({ name: "package.json", kind: "file" })).toBe("npm");
+    expect(light.resolve({ name: "src", kind: "dir" })).toBe("folder-src");
+  });
+
+  it("resolves root folders by name", () => {
+    const named = createIconResolver({
+      ...manifest,
+      rootFolderNames: { app: "root-app" },
+      rootFolderNamesExpanded: { app: "root-app-open" },
+      rootFolderExpanded: "root-open",
+    });
+    expect(named.resolve({ name: "app", kind: "dir", isRoot: true })).toBe("root-app");
+    expect(named.resolve({ name: "app", kind: "dir", isRoot: true, expanded: true })).toBe(
+      "root-app-open",
+    );
+    expect(named.resolve({ name: "x", kind: "dir", isRoot: true, expanded: true })).toBe(
+      "root-open",
+    );
+    expect(named.resolve({ name: "app", kind: "dir" })).toBe("folder");
+  });
+
   it("does not read inherited object keys as names", () => {
     expect(icons.resolve({ name: "constructor", kind: "file" })).toBe("file");
   });

@@ -7,6 +7,8 @@ export interface IconThemeManifest {
   folderExpanded?: string;
   rootFolder?: string;
   rootFolderExpanded?: string;
+  rootFolderNames?: Record<string, string>;
+  rootFolderNamesExpanded?: Record<string, string>;
   fileNames?: Record<string, string>;
   fileExtensions?: Record<string, string>;
   folderNames?: Record<string, string>;
@@ -37,10 +39,27 @@ function lookup(table: Table, key: string): string | undefined {
   return Object.hasOwn(table, key) ? table[key] : undefined;
 }
 
+const TABLES = [
+  "fileNames",
+  "fileExtensions",
+  "folderNames",
+  "folderNamesExpanded",
+  "rootFolderNames",
+  "rootFolderNamesExpanded",
+  "languageIds",
+] as const;
+
 function merged(manifest: IconThemeManifest, variant: IconVariant): IconThemeManifest {
   if (variant === "dark") return manifest;
   const override = manifest[variant];
-  return override ? { ...manifest, ...override } : manifest;
+  if (!override) return manifest;
+  const result: IconThemeManifest = { ...manifest, ...override };
+  for (const table of TABLES) {
+    if (manifest[table] && override[table]) {
+      result[table] = { ...manifest[table], ...override[table] };
+    }
+  }
+  return result;
 }
 
 export function extensionsOf(name: string): string[] {
@@ -64,14 +83,19 @@ export function createIconResolver(
     resolve({ name, kind, expanded = false, isRoot = false, languageId }) {
       const lowered = name.toLowerCase();
       if (kind === "dir") {
+        if (isRoot) {
+          const rootNamed = expanded
+            ? (lookup(theme.rootFolderNamesExpanded, lowered) ??
+              lookup(theme.rootFolderNames, lowered))
+            : lookup(theme.rootFolderNames, lowered);
+          if (rootNamed) return rootNamed;
+          const root = expanded ? theme.rootFolderExpanded : theme.rootFolder;
+          if (root) return root;
+        }
         const named = expanded
           ? (lookup(theme.folderNamesExpanded, lowered) ?? lookup(theme.folderNames, lowered))
           : lookup(theme.folderNames, lowered);
         if (named) return named;
-        if (isRoot) {
-          const root = expanded ? theme.rootFolderExpanded : theme.rootFolder;
-          if (root) return root;
-        }
         return expanded ? (theme.folderExpanded ?? theme.folder) : theme.folder;
       }
       const byName = lookup(theme.fileNames, lowered);
