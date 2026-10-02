@@ -2,6 +2,7 @@
 
 ## 0.3.0
 
+- Trailing slashes are trimmed with a loop instead of a regular expression that backtracked quadratically on long runs of `/`.
 - Git support. `tree.setGit` and `attachGit` from `@jensen-org/jft-29/git` take statuses from the host. Rows carry `status`, `staged`, `inherited` and `ignored`, folders take the worst status below them, and a rename or move carries the status along.
 - `readDir` entries accept `ignored`. Ignored rows and everything under them are dimmed, and `hideIgnored` removes them.
 - New tone variables `--jft-tone-untracked`, `--jft-tone-conflicted`, `--jft-tone-deleted`, `--jft-tone-renamed` and `--jft-ignored-opacity`. `--jft-tone-ignored` now follows the color scheme.
