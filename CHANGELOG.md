@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.2.0
 
 - Colors follow the host `color-scheme` through `light-dark()` instead of `prefers-color-scheme`, so a dark system with a light page no longer renders near white text on white.
 - Icon theme variants overlay the base theme one entry at a time, so `light` no longer drops every name it does not list. Root folders resolve through `rootFolderNames` and `rootFolderNamesExpanded`.
