@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.3.0
 
 - Git support. `tree.setGit` and `attachGit` from `@jensen-org/jft-29/git` take statuses from the host. Rows carry `status`, `staged`, `inherited` and `ignored`, folders take the worst status below them, and a rename or move carries the status along.
 - `readDir` entries accept `ignored`. Ignored rows and everything under them are dimmed, and `hideIgnored` removes them.
