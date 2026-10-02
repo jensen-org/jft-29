@@ -269,6 +269,7 @@ const showToolbar = computed(
 const hasToolbarSlot = computed(() => Boolean(slots.toolbar));
 const slots = defineSlots<{
   toolbar?(props: { tree: Tree | null }): unknown;
+  leading?(props: { row: Row; node: TreeNode; selected: boolean }): unknown;
   row?(props: { row: Row; node: TreeNode; selected: boolean }): unknown;
   icon?(props: { row: Row; node: TreeNode; expanded: boolean; url: string | undefined }): unknown;
   badge?(props: { node: TreeNode; decoration: Decoration }): unknown;
@@ -503,7 +504,11 @@ onBeforeUnmount(() => document.removeEventListener("pointerdown", onDocumentPoin
 
 const visibleActions = computed(() => (props.actions ?? []).filter((a) => a.when?.() ?? true));
 
-defineExpose({ tree, scrollToPath });
+function focus(): void {
+  body.value?.focus({ preventScroll: true });
+}
+
+defineExpose({ tree, scrollToPath, focus });
 </script>
 
 <template>
@@ -644,6 +649,12 @@ defineExpose({ tree, scrollToPath });
             @drop.stop="onDrop($event, entries[index]!.row!)"
             @dragend="onDragEnd"
           >
+            <slot
+              name="leading"
+              :row="entries[index]!.row!"
+              :node="entries[index]!.row!.node"
+              :selected="selected.has(entries[index]!.row!.node.path)"
+            />
             <span
               class="jft-twist"
               :data-expanded="entries[index]?.row?.expanded || undefined"

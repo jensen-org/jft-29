@@ -256,6 +256,15 @@ describe("state, selection and compact folders", () => {
     expect(tree.selection()).not.toContain("/p/src");
   });
 
+  it("replaces the selection with the paths that exist", async () => {
+    const { tree } = await started(FILES, { multiSelect: true });
+    const seen: string[][] = [];
+    tree.on("select", ({ paths }) => seen.push(paths));
+    tree.selectPaths(["/p/docs", "/p/README.md", "/p/missing"]);
+    expect(tree.selection().sort()).toEqual(["/p/README.md", "/p/docs"]);
+    expect(seen).toHaveLength(1);
+  });
+
   it("collapses a chain of single child folders into one row", async () => {
     const { tree } = await started(["/p/a/b/c/x.ts", "/p/z.ts"], { compactFolders: true });
     await tree.expand("/p/a");

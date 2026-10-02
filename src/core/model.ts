@@ -588,6 +588,14 @@ export class Tree {
     this.emit("select", { paths: this.selection() });
   }
 
+  selectPaths(paths: string[]): void {
+    this.selectedSet.clear();
+    for (const path of paths) if (this.nodes.has(path)) this.selectedSet.add(path);
+    this.anchor = paths[paths.length - 1] ?? null;
+    this.bump();
+    this.emit("select", { paths: this.selection() });
+  }
+
   clearSelection(): void {
     if (this.selectedSet.size === 0) return;
     this.selectedSet.clear();

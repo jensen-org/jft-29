@@ -140,6 +140,17 @@ describe("<FileTree>", () => {
     expect(badge.attributes("aria-label")).toBe("Modified");
   });
 
+  it("renders a leading slot before the twist on every row", async () => {
+    const { wrapper } = await mounted({});
+    const withSlot = mount(FileTree, {
+      props: { tree: wrapper.vm.tree as never },
+      slots: { leading: '<i class="lead" />' },
+      attachTo: document.body,
+    });
+    await flushPromises();
+    expect(withSlot.findAll(".lead")).toHaveLength(3);
+  });
+
   it("resolves icons from a manifest through the host url function", async () => {
     const { wrapper } = await mounted({
       iconTheme: { file: "file", folder: "folder", fileExtensions: { md: "markdown" } },
