@@ -13,6 +13,7 @@ export default defineConfig({
         index: "src/index.ts",
         vue: "src/vue/index.ts",
         editor: "src/editor/index.ts",
+        git: "src/git/index.ts",
         languages: "src/languages/index.ts",
         "icons/material": "src/icons/material.ts",
         "icons/symbols": "src/icons/symbols.ts",

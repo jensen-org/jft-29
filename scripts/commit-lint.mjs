@@ -19,6 +19,7 @@ export const SCOPES = [
   "core",
   "vue",
   "editor",
+  "git",
   "languages",
   "icons",
   "playground",

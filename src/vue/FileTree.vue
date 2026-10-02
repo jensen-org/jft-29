@@ -5,6 +5,7 @@ import { createTree, type Tree } from "../core/model.js";
 import { ancestorsBetween, dirname, isStrictlyWithin } from "../core/paths.js";
 import {
   type EditState,
+  type GitStatus,
   type Row,
   TreeError,
   type TreeNode,
@@ -272,7 +273,12 @@ const slots = defineSlots<{
   leading?(props: { row: Row; node: TreeNode; selected: boolean }): unknown;
   row?(props: { row: Row; node: TreeNode; selected: boolean }): unknown;
   icon?(props: { row: Row; node: TreeNode; expanded: boolean; url: string | undefined }): unknown;
-  badge?(props: { node: TreeNode; decoration: Decoration }): unknown;
+  badge?(props: {
+    node: TreeNode;
+    decoration?: Decoration;
+    status?: GitStatus;
+    staged?: boolean;
+  }): unknown;
   "edit-input"?(props: {
     value: string;
     kind: "file" | "dir";
@@ -301,8 +307,28 @@ function iconUrlFor(row: Row): string | undefined {
   return definition ? props.iconUrl(definition) : undefined;
 }
 
-function toneOf(path: string): string | undefined {
-  return props.decorations?.get(path)?.tone;
+const GIT_LETTERS: Record<GitStatus, string> = {
+  modified: "M",
+  added: "A",
+  deleted: "D",
+  renamed: "R",
+  untracked: "U",
+  conflicted: "C",
+};
+
+function toneOf(row: Row): string | undefined {
+  const decorated = props.decorations?.get(row.node.path)?.tone;
+  if (decorated) return decorated;
+  if (row.ignored) return "ignored";
+  return row.status ?? row.inherited ?? undefined;
+}
+
+function gitLetter(row: Row): string | undefined {
+  return row.status ? GIT_LETTERS[row.status] : undefined;
+}
+
+function hasDot(row: Row): boolean {
+  return row.node.kind === "dir" && (row.inherited !== null || inherited.value.has(row.node.path));
 }
 
 function measure(): void {
@@ -638,7 +664,9 @@ defineExpose({ tree, scrollToPath, focus });
             :data-focused="tree?.focused() === entries[index]?.row?.node.path || undefined"
             :data-drop="dropTarget === entries[index]?.row?.node.path || undefined"
             :data-pending="entries[index]?.row?.node.pending || undefined"
-            :data-tone="toneOf(entries[index]?.row?.node.path ?? '')"
+            :data-tone="toneOf(entries[index]!.row!)"
+            :data-staged="entries[index]!.row!.staged || undefined"
+            :data-ignored="entries[index]!.row!.ignored || undefined"
             :draggable="true"
             :style="{
               top: `${index * rowHeight}px`,
@@ -700,7 +728,7 @@ defineExpose({ tree, scrollToPath, focus });
               />
             </slot>
             <template v-else>
-              <span class="jft-label" :data-tone="toneOf(entries[index]!.row!.node.path)">
+              <span class="jft-label" :data-tone="toneOf(entries[index]!.row!)">
                 <template v-for="(part, at) in entries[index]!.row!.chain" :key="part.path">
                   <span v-if="at > 0" class="jft-chain-sep">/</span>{{ part.name }}
                 </template>
@@ -720,9 +748,25 @@ defineExpose({ tree, scrollToPath, focus });
                   {{ decorations!.get(entries[index]!.row!.node.path)!.badge }}
                 </span>
               </slot>
+              <slot
+                v-else-if="gitLetter(entries[index]!.row!)"
+                name="badge"
+                :node="entries[index]!.row!.node"
+                :status="entries[index]!.row!.status!"
+                :staged="entries[index]!.row!.staged"
+              >
+                <span
+                  class="jft-badge"
+                  :data-tone="entries[index]!.row!.status!"
+                  :aria-label="entries[index]!.row!.status!"
+                >
+                  {{ gitLetter(entries[index]!.row!) }}
+                </span>
+              </slot>
               <span
-                v-else-if="entries[index]!.row!.node.kind === 'dir' && inherited.has(entries[index]!.row!.node.path)"
+                v-else-if="hasDot(entries[index]!.row!)"
                 class="jft-dot"
+                :data-tone="entries[index]!.row!.inherited ?? 'modified'"
                 aria-hidden="true"
               />
               <slot

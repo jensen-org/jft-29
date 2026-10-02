@@ -1,5 +1,8 @@
 export function trimTrailing(path: string): string {
-  return path.length > 1 ? path.replace(/\/+$/, "") || "/" : path;
+  if (path.length < 2) return path;
+  let end = path.length;
+  while (end > 0 && path.charCodeAt(end - 1) === 47) end -= 1;
+  return end === 0 ? "/" : path.slice(0, end);
 }
 
 export function join(parent: string, name: string): string {

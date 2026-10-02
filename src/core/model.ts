@@ -14,6 +14,8 @@ import {
   type EditState,
   type EntryKind,
   type FsEvent,
+  type GitEntry,
+  type GitStatus,
   type KeyLike,
   type RevealOptions,
   type Row,
@@ -27,6 +29,20 @@ import {
 } from "./types.js";
 
 type Listener<T> = (payload: T) => void;
+
+interface GitInfo {
+  status: GitStatus;
+  staged: boolean;
+}
+
+const GIT_RANK: GitStatus[] = [
+  "conflicted",
+  "deleted",
+  "modified",
+  "added",
+  "renamed",
+  "untracked",
+];
 
 interface Snapshot {
   nodes: TreeNode[];
@@ -65,6 +81,8 @@ export class Tree {
   private version = 0;
   private cache: { version: number; rows: Row[] } | null = null;
   private typed = { buffer: "", at: 0 };
+  private git = new Map<string, GitInfo>();
+  private inheritedCache: { version: number; map: Map<string, GitStatus> } | null = null;
 
   constructor(options: TreeOptions) {
     this.options = { ...options, root: trimTrailing(options.root) };
@@ -115,7 +133,10 @@ export class Tree {
 
   configure(
     patch: Partial<
-      Pick<TreeOptions, "sort" | "filter" | "nest" | "compactFolders" | "multiSelect">
+      Pick<
+        TreeOptions,
+        "sort" | "filter" | "nest" | "compactFolders" | "multiSelect" | "hideIgnored"
+      >
     >,
   ): void {
     Object.assign(this.options, patch);
@@ -167,6 +188,7 @@ export class Tree {
       children: null,
       state: "unloaded",
       pending,
+      ignored: false,
     };
     for (const plugin of this.options.plugins ?? []) plugin.decorate?.(node);
     return node;
@@ -214,7 +236,10 @@ export class Tree {
     return true;
   }
 
-  private reconcile(node: TreeNode, entries: { name: string; kind: EntryKind }[]): void {
+  private reconcile(
+    node: TreeNode,
+    entries: { name: string; kind: EntryKind; ignored?: boolean }[],
+  ): void {
     const next: string[] = [];
     const listed = new Set<string>();
     for (const entry of entries) {
@@ -224,9 +249,12 @@ export class Tree {
       const existing = this.nodes.get(path);
       if (existing && existing.kind === entry.kind) {
         existing.pending = false;
+        existing.ignored = entry.ignored === true;
       } else {
         if (existing) this.detach(path);
-        this.nodes.set(path, this.makeNode(path, entry.name, entry.kind, node.path));
+        const created = this.makeNode(path, entry.name, entry.kind, node.path);
+        created.ignored = entry.ignored === true;
+        this.nodes.set(path, created);
       }
       next.push(path);
     }
@@ -330,7 +358,59 @@ export class Tree {
     if (focus && isWithin(from, focus)) this.focusedPath = replacePrefix(focus, from, to);
     destination.children = [...(destination.children ?? []), to];
     this.sortChildren(destination);
+    this.rekeyGit(from, to);
     return true;
+  }
+
+  private rekeyGit(from: string, to: string): void {
+    if (this.git.size === 0) return;
+    const next = new Map<string, GitInfo>();
+    for (const [path, info] of this.git) {
+      next.set(isWithin(from, path) ? replacePrefix(path, from, to) : path, info);
+    }
+    this.git = next;
+  }
+
+  setGit(entries: GitEntry[]): void {
+    const next = new Map<string, GitInfo>();
+    for (const entry of entries) {
+      const path = trimTrailing(entry.path);
+      if (!isStrictlyWithin(this.root, path)) continue;
+      next.set(path, { status: entry.status, staged: entry.staged === true });
+    }
+    const same =
+      next.size === this.git.size &&
+      [...next].every(([path, info]) => {
+        const known = this.git.get(path);
+        return known?.status === info.status && known.staged === info.staged;
+      });
+    if (same) return;
+    this.git = next;
+    this.bump();
+  }
+
+  private isIgnored(path: string): boolean {
+    for (let current = path; isWithin(this.root, current); current = dirname(current)) {
+      if (this.nodes.get(current)?.ignored) return true;
+      if (current === this.root) return false;
+    }
+    return false;
+  }
+
+  private inheritedMap(): Map<string, GitStatus> {
+    if (this.inheritedCache?.version === this.version) return this.inheritedCache.map;
+    const map = new Map<string, GitStatus>();
+    for (const [path, info] of this.git) {
+      if (this.isIgnored(path)) continue;
+      for (const dir of ancestorsBetween(this.root, path)) {
+        const known = map.get(dir);
+        if (!known || GIT_RANK.indexOf(info.status) < GIT_RANK.indexOf(known)) {
+          map.set(dir, info.status);
+        }
+      }
+    }
+    this.inheritedCache = { version: this.version, map };
+    return map;
   }
 
   private afterDetached(path: string, focus: string | null): void {
@@ -357,6 +437,11 @@ export class Tree {
     let structural = false;
     for (const event of events) structural = this.apply(event) || structural;
     if (structural) this.bump();
+    this.emit("watched", undefined);
+  }
+
+  report(error: TreeError): void {
+    this.emit("error", error);
   }
 
   private apply(event: FsEvent): boolean {
@@ -453,8 +538,10 @@ export class Tree {
   }
 
   private visible(node: TreeNode): boolean {
+    if (node.pending || this.pinned.has(node.path)) return true;
+    if (this.options.hideIgnored && this.isIgnored(node.path)) return false;
     const { filter } = this.options;
-    return !filter || node.pending || this.pinned.has(node.path) || filter(node);
+    return !filter || filter(node);
   }
 
   private visibleChildren(node: TreeNode): TreeNode[] {
@@ -536,6 +623,7 @@ export class Tree {
       const nested = last.kind === "file" ? this.nestedUnder(last, memo) : [];
       const expandable = last.kind === "dir" || nested.length > 0;
       const expanded = expandable && this.expandedSet.has(first.path);
+      const info = this.git.get(last.path);
       out.push({
         id: first.path,
         node: last,
@@ -547,6 +635,10 @@ export class Tree {
         expanded,
         loading: expanded && (first.state === "loading" || last.state === "loading"),
         error: last.state === "error",
+        status: info?.status ?? null,
+        staged: info?.staged ?? false,
+        inherited: last.kind === "dir" ? (this.inheritedMap().get(last.path) ?? null) : null,
+        ignored: this.isIgnored(last.path),
       });
       if (!expanded) return;
       const below = last.kind === "dir" ? this.topLevel(last, memo) : nested;
@@ -821,8 +913,17 @@ export class Tree {
         ? false
         : this.fail("remove", path, `could not delete ${basename(path)}`, cause);
     }
+    this.dropGit(path);
     this.emit("removed", { path });
     return true;
+  }
+
+  private dropGit(path: string): void {
+    let changed = false;
+    for (const key of [...this.git.keys()]) {
+      if (isWithin(path, key)) changed = this.git.delete(key) || changed;
+    }
+    if (changed) this.bump();
   }
 
   requestDelete(): void {

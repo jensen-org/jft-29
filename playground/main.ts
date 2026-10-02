@@ -1,4 +1,5 @@
 import { createApp, h, ref, shallowRef } from "vue";
+import { attachGit } from "../src/git/index.js";
 import { materialIcons } from "../src/icons/material.js";
 import { symbolsIcons } from "../src/icons/symbols.js";
 import { createMemoryProvider, type Tree, type TreeProvider } from "../src/index.js";
@@ -12,6 +13,11 @@ const memory = createMemoryProvider(
   ["/p/src/a.ts", "/p/src/deep/er/b.ts", "/p/README.md", "/p/docs/guide.md", "/p/package.json"],
   "/p",
 );
+const readMemory = memory.readDir.bind(memory);
+memory.readDir = async (path) =>
+  (await readMemory(path)).map((entry) =>
+    path === "/p" && entry.name === "docs" ? { ...entry, ignored: true } : entry,
+  );
 const log = document.getElementById("log") as HTMLElement;
 const source = shallowRef<Source>({ provider: memory, root: "/p" });
 const variant = ref<"dark" | "light">(
@@ -44,7 +50,18 @@ createApp({
       onOpen: (event: unknown) => write(`open ${JSON.stringify(event)}`),
       onError: (error: Error) => write(`error ${error.message}`),
       ref: (instance: unknown) => {
-        tree = (instance as { tree: Tree | null } | null)?.tree ?? tree;
+        const next = (instance as { tree: Tree | null } | null)?.tree ?? null;
+        if (!next || next === tree) return;
+        tree = next;
+        if (source.value.provider !== memory) return;
+        attachGit(next, {
+          read: async () => [
+            { path: "/p/src/a.ts", status: "modified" },
+            { path: "/p/src/deep/er/b.ts", status: "untracked" },
+            { path: "/p/package.json", status: "added", staged: true },
+            { path: "/p/README.md", status: "conflicted" },
+          ],
+        });
       },
     }),
 }).mount("#tree");
