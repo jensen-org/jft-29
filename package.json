@@ -1,6 +1,6 @@
 {
   "name": "@jensen-org/jft-29",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "A small, event driven, dependency free file tree with a Vue 3 layer.",
   "license": "MIT",
   "type": "module",

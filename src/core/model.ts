@@ -99,11 +99,10 @@ export class Tree {
 
   async start(): Promise<boolean> {
     this.expandedSet.add(this.root);
-    const loaded = await this.load(this.root);
-    if (this.options.provider.watch && !this.disposed) {
+    if (this.options.provider.watch) {
       this.watcher = this.options.provider.watch((batch) => this.push(batch));
     }
-    return loaded;
+    return this.load(this.root);
   }
 
   dispose(): void {

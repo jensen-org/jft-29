@@ -343,3 +343,22 @@ describe("keyboard", () => {
     expect(tree.get("/p/GUIDE.md")).toBeDefined();
   });
 });
+
+describe("start order", () => {
+  it("subscribes to the watcher before the first read so no event is lost", async () => {
+    const provider = createMemoryProvider(FILES, "/p");
+    const order: string[] = [];
+    const watch = provider.watch;
+    const readDir = provider.readDir;
+    provider.watch = (emit) => {
+      order.push("watch");
+      return watch?.call(provider, emit) ?? { dispose: () => undefined };
+    };
+    provider.readDir = async (path) => {
+      order.push("read");
+      return readDir.call(provider, path);
+    };
+    await createTree({ provider, root: "/p" }).start();
+    expect(order).toEqual(["watch", "read"]);
+  });
+});

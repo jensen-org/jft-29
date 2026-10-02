@@ -220,4 +220,22 @@ describe("<FileTree>", () => {
     expect(errors).toEqual([]);
     expect(tree.get("/p/docs")).toBeDefined();
   });
+
+  it("lets the host render the rename input through the edit slot", async () => {
+    const provider = createMemoryProvider(FILES, "/p");
+    const tree = createTree({ provider, root: "/p", schedule: (run) => run() });
+    await tree.start();
+    const wrapper = mount(FileTree, {
+      props: { tree },
+      slots: {
+        "edit-input": `<template #edit-input="{ value, renaming }"><b class="host-input">{{ renaming }}:{{ value }}</b></template>`,
+      },
+      attachTo: document.body,
+    });
+    await flushPromises();
+    tree.startRename("/p/README.md");
+    await flushPromises();
+    expect(wrapper.find(".host-input").text()).toBe("true:README.md");
+    expect(wrapper.find("input.jft-edit").exists()).toBe(false);
+  });
 });

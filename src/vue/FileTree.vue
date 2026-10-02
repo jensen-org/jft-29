@@ -277,7 +277,9 @@ const slots = defineSlots<{
     value: string;
     kind: "file" | "dir";
     commit: (name: string) => void;
+    blurCommit: (name: string) => void;
     cancel: () => void;
+    renaming: boolean;
   }): unknown;
   empty?(): unknown;
   error?(props: { retry: () => void }): unknown;
@@ -607,7 +609,9 @@ defineExpose({ tree, scrollToPath, focus });
               value=""
               :kind="entries[index]?.create?.kind ?? 'file'"
               :commit="commit"
+              :blur-commit="blurCommit"
               :cancel="cancel"
+              :renaming="false"
             >
               <EditBox
                 initial=""
@@ -677,14 +681,24 @@ defineExpose({ tree, scrollToPath, focus });
               </slot>
             </span>
 
-            <EditBox
+            <slot
               v-if="edit?.type === 'rename' && edit.path === entries[index]?.row?.node.path"
-              :initial="entries[index]!.row!.node.name"
-              label="New name"
-              @commit="commit"
-              @blur-commit="blurCommit"
-              @cancel="cancel"
-            />
+              name="edit-input"
+              :value="entries[index]!.row!.node.name"
+              :kind="entries[index]!.row!.node.kind"
+              :commit="commit"
+              :blur-commit="blurCommit"
+              :cancel="cancel"
+              :renaming="true"
+            >
+              <EditBox
+                :initial="entries[index]!.row!.node.name"
+                label="New name"
+                @commit="commit"
+                @blur-commit="blurCommit"
+                @cancel="cancel"
+              />
+            </slot>
             <template v-else>
               <span class="jft-label" :data-tone="toneOf(entries[index]!.row!.node.path)">
                 <template v-for="(part, at) in entries[index]!.row!.chain" :key="part.path">
