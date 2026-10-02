@@ -21,9 +21,19 @@ function sources(dir) {
 }
 
 const bare = /(?:from|import)\s*\(?\s*["']([^./"'][^"']*)["']/g;
-for (const file of sources("src")) {
+for (const file of sources("src").filter((path) => !path.endsWith(".generated.ts"))) {
   for (const match of readFileSync(file, "utf8").matchAll(bare)) {
     if (match[1] !== "vue") failures.push(`${file} imports ${match[1]}`);
+  }
+}
+
+const optIn =
+  /(?:from|import)\s*\(?\s*["'][^"']*(?:\/icons\/material|\/languages|\.generated)(?:\/index)?(?:\.js)?["']/;
+for (const file of sources("src")) {
+  const inOptIn =
+    file.startsWith(join("src", "icons")) || file.startsWith(join("src", "languages"));
+  if (!inOptIn && optIn.test(readFileSync(file, "utf8"))) {
+    failures.push(`${file} imports an opt in module, only src/icons and src/languages may`);
   }
 }
 

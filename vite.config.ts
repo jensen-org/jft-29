@@ -14,6 +14,7 @@ export default defineConfig({
         vue: "src/vue/index.ts",
         editor: "src/editor/index.ts",
         languages: "src/languages/index.ts",
+        "icons/material": "src/icons/material.ts",
       },
     },
     rollupOptions: { external: ["vue"] },

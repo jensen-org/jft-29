@@ -31,6 +31,10 @@
       "types": "./dist/types/languages/index.d.ts",
       "import": "./dist/languages.js"
     },
+    "./icons/material": {
+      "types": "./dist/types/icons/material.d.ts",
+      "import": "./dist/icons/material.js"
+    },
     "./style.css": "./dist/style.css"
   },
   "peerDependencies": {
@@ -45,10 +49,10 @@
     "typecheck": "vue-tsc --noEmit",
     "lint": "biome check .",
     "test": "vitest run",
-    "build": "vite build && vue-tsc -p tsconfig.build.json && node scripts/finish-types.mjs",
+    "build": "vite build && vue-tsc -p tsconfig.build.json && node scripts/finish-types.mjs && node scripts/gen-icons.mjs --copy",
     "deps": "node scripts/check-deps.mjs",
-    "gen": "node scripts/gen-languages.mjs",
-    "gen:check": "node scripts/gen-languages.mjs --check",
+    "gen": "node scripts/gen-languages.mjs && node scripts/gen-icons.mjs",
+    "gen:check": "node scripts/gen-languages.mjs --check && node scripts/gen-icons.mjs --check",
     "package": "publint && attw --pack . --profile esm-only --exclude-entrypoints ./style.css",
     "check": "bun run typecheck && bun run lint && bun run test && bun run gen:check && bun run build && bun run deps && bun run package",
     "dev": "vite playground"
