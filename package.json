@@ -1,0 +1,67 @@
+{
+  "name": "@jensen-org/jft-29",
+  "version": "0.1.0",
+  "description": "A small, event driven, dependency free file tree with a Vue 3 layer.",
+  "license": "MIT",
+  "type": "module",
+  "sideEffects": [
+    "**/*.css"
+  ],
+  "files": [
+    "dist"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/jensen-org/jft-29.git"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/types/index.d.ts",
+      "import": "./dist/index.js"
+    },
+    "./vue": {
+      "types": "./dist/types/vue/index.d.ts",
+      "import": "./dist/vue.js"
+    },
+    "./editor": {
+      "types": "./dist/types/editor/index.d.ts",
+      "import": "./dist/editor.js"
+    },
+    "./languages": {
+      "types": "./dist/types/languages/index.d.ts",
+      "import": "./dist/languages.js"
+    },
+    "./style.css": "./dist/style.css"
+  },
+  "peerDependencies": {
+    "vue": "^3.4.0"
+  },
+  "peerDependenciesMeta": {
+    "vue": {
+      "optional": true
+    }
+  },
+  "scripts": {
+    "typecheck": "vue-tsc --noEmit",
+    "lint": "biome check .",
+    "test": "vitest run",
+    "build": "vite build && vue-tsc -p tsconfig.build.json",
+    "deps": "node scripts/check-deps.mjs",
+    "package": "publint && attw --pack . --profile esm-only",
+    "check": "bun run typecheck && bun run lint && bun run test && bun run build && bun run deps && bun run package",
+    "dev": "vite playground"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.0",
+    "@biomejs/biome": "^2.0.0",
+    "@vitejs/plugin-vue": "^6.0.0",
+    "@vue/test-utils": "^2.4.6",
+    "happy-dom": "^20.0.0",
+    "publint": "^0.3.0",
+    "typescript": "^5.9.0",
+    "vite": "^7.0.0",
+    "vitest": "^3.2.0",
+    "vue": "^3.5.0",
+    "vue-tsc": "^3.0.0"
+  }
+}
