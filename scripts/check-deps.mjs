@@ -28,7 +28,7 @@ for (const file of sources("src").filter((path) => !path.endsWith(".generated.ts
 }
 
 const optIn =
-  /(?:from|import)\s*\(?\s*["'][^"']*(?:\/icons\/material|\/languages|\.generated)(?:\/index)?(?:\.js)?["']/;
+  /(?:from|import)\s*\(?\s*["'][^"']*(?:\/icons\/(?:material|symbols|bundled)|\/languages|\.generated)(?:\/index)?(?:\.js)?["']/;
 for (const file of sources("src")) {
   const inOptIn =
     file.startsWith(join("src", "icons")) || file.startsWith(join("src", "languages"));

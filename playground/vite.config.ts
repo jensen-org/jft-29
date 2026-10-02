@@ -3,5 +3,5 @@ import { defineConfig } from "vite";
 
 export default defineConfig({
   plugins: [vue()],
-  publicDir: "../node_modules/material-icon-theme",
+  publicDir: "../dist",
 });

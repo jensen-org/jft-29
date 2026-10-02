@@ -9,3 +9,4 @@ updates:
         patterns:
           - linguist-languages
           - material-icon-theme
+          - vscode-symbols

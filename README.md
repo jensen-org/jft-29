@@ -55,6 +55,7 @@ npm install @jensen-org/jft-29
 | `@jensen-org/jft-29/editor` | `followActivePath` and `followMonaco`, with no editor import |
 | `@jensen-org/jft-29/languages` | The optional language plugin |
 | `@jensen-org/jft-29/icons/material` | The optional Material icon theme and its svg files |
+| `@jensen-org/jft-29/icons/symbols` | The optional Symbols icon theme, outline folders with small accents, and its svg files |
 | `@jensen-org/jft-29/style.css` | The stylesheet for the component |
 
 ## Quick start
@@ -157,26 +158,28 @@ the default icon. Folders use their name and expansion state, and the root folde
 `highContrast` block overrides the base theme one entry at a time, so every name it does not list keeps its base
 icon. `icon-variant="light"` applies it. For full control, fill the `icon` slot.
 
-### Material icons
+### Bundled icon themes
 
-The optional `@jensen-org/jft-29/icons/material` entry carries the Material Icon Theme as data, with its svg files
+Two optional entries carry an icon theme as data: `@jensen-org/jft-29/icons/material` (Material Icon Theme, colorful and
+comprehensive) and `@jensen-org/jft-29/icons/symbols` (Symbols, minimal outline folders in a muted gray with a small
+accent, about 210 icons). Pick one, the other costs nothing. Each entry carries the theme as data, with its svg files
 shipped in the package under `dist/icons/material`. Nothing loads unless you import it, and each svg is requested
 only when a row shows it.
 
 ```ts
-import { materialIcons } from "@jensen-org/jft-29/icons/material";
+import { symbolsIcons } from "@jensen-org/jft-29/icons/symbols";
 
-const { iconTheme, iconUrl } = materialIcons();
+const { iconTheme, iconUrl } = symbolsIcons(); // or materialIcons()
 ```
 
 ```vue
 <FileTree :icon-theme="iconTheme" :icon-url="iconUrl" />
 ```
 
-`materialIcons()` finds the svg files next to the module, which works with native ESM and dev servers. When a
+`symbolsIcons()` and `materialIcons()` find the svg files next to the module, which works with native ESM and dev servers. When a
 bundler does not copy them, serve `node_modules/@jensen-org/jft-29/dist/icons/material` yourself, from your
-public folder or a CDN, and pass its url: `materialIcons("/icons/material")`. The theme data and svg files are
-generated from `material-icon-theme` (MIT, license shipped next to the svg files).
+public folder or a CDN, and pass its url: `symbolsIcons("/icons/symbols")`. The theme data and svg files are generated from
+`material-icon-theme` and `vscode-symbols` (both MIT, each license shipped next to its svg files).
 
 ## Languages
 
@@ -248,7 +251,7 @@ bun run gen      # regenerate the language table and the Material theme
 ```
 
 The language table and the Material theme are generated from pinned dev dependencies (`linguist-languages`,
-`material-icon-theme`). Bump one on purpose, run `bun run gen`, and commit the regenerated files, because
+`material-icon-theme`, `vscode-symbols`). Bump one on purpose, run `bun run gen`, and commit the regenerated files, because
 `bun run gen:check` fails when they are stale.
 
 `develop` is the working branch. Changes reach `main` by pull request, and a release is a `v*` tag on a commit that

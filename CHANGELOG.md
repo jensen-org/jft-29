@@ -7,6 +7,7 @@
 - The language table is generated from GitHub Linguist data and resolves to VS Code language ids.
 - Language lookups ignore inherited object keys, so a file named `constructor` has no language.
 - `@jensen-org/jft-29/icons/material`, an opt in Material icon theme with its svg files, generated from `material-icon-theme`.
+- `@jensen-org/jft-29/icons/symbols`, an opt in minimal icon theme with its svg files, generated from `vscode-symbols`.
 
 ## 0.1.2
 

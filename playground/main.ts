@@ -1,5 +1,6 @@
 import { createApp, h, ref, shallowRef } from "vue";
 import { materialIcons } from "../src/icons/material.js";
+import { symbolsIcons } from "../src/icons/symbols.js";
 import { createMemoryProvider, type Tree, type TreeProvider } from "../src/index.js";
 import { languagePlugin } from "../src/languages/index.js";
 import { FileTree } from "../src/vue/index.js";
@@ -16,7 +17,11 @@ const source = shallowRef<Source>({ provider: memory, root: "/p" });
 const variant = ref<"dark" | "light">(
   window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light",
 );
-const { iconTheme, iconUrl } = materialIcons("/icons");
+const packs = {
+  symbols: symbolsIcons("/icons/symbols"),
+  material: materialIcons("/icons/material"),
+};
+const pack = ref<keyof typeof packs>("symbols");
 let tree: Tree | null = null;
 
 function write(line: string): void {
@@ -30,8 +35,8 @@ createApp({
       provider: source.value.provider,
       root: source.value.root,
       plugins: [languagePlugin()],
-      iconTheme,
-      iconUrl,
+      iconTheme: packs[pack.value].iconTheme,
+      iconUrl: packs[pack.value].iconUrl,
       iconVariant: variant.value,
       compactFolders: true,
       multiSelect: true,
@@ -60,6 +65,10 @@ folderButton.addEventListener("click", () => {
     },
     (error: Error) => write(`error ${error.message}`),
   );
+});
+document.getElementById("pack")?.addEventListener("click", () => {
+  pack.value = pack.value === "symbols" ? "material" : "symbols";
+  write(`icons ${pack.value}`);
 });
 document.getElementById("theme")?.addEventListener("click", () => {
   variant.value = variant.value === "dark" ? "light" : "dark";
