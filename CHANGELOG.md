@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.1.2
+
+- A full README, and a release guard that only publishes tags on commits that are on `main`.
+
 ## 0.1.1
 
 - `selectPaths`, a `leading` row slot and a `focus()` handle on the component.
