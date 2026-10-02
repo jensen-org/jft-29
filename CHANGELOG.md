@@ -1,5 +1,12 @@
 # Changelog
 
+## Unreleased
+
+- Icon theme variants overlay the base theme one entry at a time, so `light` no longer drops every name it does not list. Root folders resolve through `rootFolderNames` and `rootFolderNamesExpanded`.
+- The language table is generated from GitHub Linguist data and resolves to VS Code language ids.
+- Language lookups ignore inherited object keys, so a file named `constructor` has no language.
+- `@jensen-org/jft-29/icons/material`, an opt in Material icon theme with its svg files, generated from `material-icon-theme`.
+
 ## 0.1.2
 
 - A full README, and a release guard that only publishes tags on commits that are on `main`.

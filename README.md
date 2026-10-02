@@ -34,8 +34,8 @@ lives on disk, changes without asking, and is far larger than what is on screen.
 | Following | `reveal(path)`, `followActivePath`, `followMonaco`, `followActive` on the component |
 | Writes | Create, rename, move, delete with rollback, cancel support and typed errors |
 | Structure | Compact folders, file nesting hook, sort, filter, selection with ranges |
-| Icons | Any VS Code file icon theme manifest, resolved the way VS Code resolves it |
-| Languages | Optional plugin that gives each file a language id from its name and extension |
+| Icons | Any VS Code file icon theme manifest, resolved the way VS Code resolves it, plus an opt in Material theme |
+| Languages | Optional plugin that gives each file a VS Code language id from its name and extension |
 | Accessibility | Roles, levels, set sizes, `aria-activedescendant`, full keyboard, reduced motion |
 | Scale | A virtualized flat list, so thousands of rows stay smooth |
 | Theming | CSS variables only, light and dark, no framework styles |
@@ -54,6 +54,7 @@ npm install @jensen-org/jft-29
 | `@jensen-org/jft-29/vue` | The `FileTree` component |
 | `@jensen-org/jft-29/editor` | `followActivePath` and `followMonaco`, with no editor import |
 | `@jensen-org/jft-29/languages` | The optional language plugin |
+| `@jensen-org/jft-29/icons/material` | The optional Material icon theme and its svg files |
 | `@jensen-org/jft-29/style.css` | The stylesheet for the component |
 
 ## Quick start
@@ -144,18 +145,38 @@ there is no import of Monaco or CodeMirror. CodeMirror 6 has no notion of a docu
 
 ## Icons
 
-Pass any VS Code file icon theme manifest and a function that turns a definition id into a URL. The library never
-injects markup and ships no icons.
+Pass any VS Code file icon theme manifest and a function that turns a definition id into a URL. The core never
+injects markup and imports no icon pack.
 
 ```ts
-import { generateManifest } from "material-icon-theme";
-
-<FileTree :icon-theme="generateManifest()" :icon-url="(id) => `/icons/${id}.svg`" />
+<FileTree :icon-theme="manifest" :icon-url="(id) => `/icons/${id}.svg`" />
 ```
 
 Resolution follows VS Code: file name, then the longest extension (`d.ts` before `ts`), then the language id, then
-the default icon. Folders use their name and expansion state. A `light` block in the manifest applies with
-`icon-variant="light"`. For full control, fill the `icon` slot.
+the default icon. Folders use their name and expansion state, and the root folder its own tables. A `light` or
+`highContrast` block overrides the base theme one entry at a time, so every name it does not list keeps its base
+icon. `icon-variant="light"` applies it. For full control, fill the `icon` slot.
+
+### Material icons
+
+The optional `@jensen-org/jft-29/icons/material` entry carries the Material Icon Theme as data, with its svg files
+shipped in the package under `dist/icons/material`. Nothing loads unless you import it, and each svg is requested
+only when a row shows it.
+
+```ts
+import { materialIcons } from "@jensen-org/jft-29/icons/material";
+
+const { iconTheme, iconUrl } = materialIcons();
+```
+
+```vue
+<FileTree :icon-theme="iconTheme" :icon-url="iconUrl" />
+```
+
+`materialIcons()` finds the svg files next to the module, which works with native ESM and dev servers. When a
+bundler does not copy them, serve `node_modules/@jensen-org/jft-29/dist/icons/material` yourself, from your
+public folder or a CDN, and pass its url: `materialIcons("/icons/material")`. The theme data and svg files are
+generated from `material-icon-theme` (MIT, license shipped next to the svg files).
 
 ## Languages
 
@@ -165,8 +186,14 @@ import { languagePlugin } from "@jensen-org/jft-29/languages";
 createTree({ provider, root, plugins: [languagePlugin({ extensions: { foo: "foolang" } })] });
 ```
 
-Files get a `languageId`, and the `open` event carries it, so an editor can pick a mode with no lookup of its
-own. Nothing is loaded unless you import it.
+Files get a VS Code language id, and the `open` event carries it, so an editor can pick a mode with no lookup of
+its own. Nothing is loaded unless you import it.
+
+The table is generated from GitHub Linguist data (`linguist-languages`), not written by hand. Where Linguist lists
+several languages for one extension, the generator ranks them (primary extension, then type, then Linguist id)
+and a short list in `scripts/language-rules.mjs` settles the ones that matter, such as `.ts`, `.md` and `.h`.
+That file also holds the few Linguist names whose VS Code id differs, like `Shell` to `shellscript`. Use the
+plugin's `extensions` and `fileNames` options for anything project specific.
 
 ## Component reference
 
@@ -204,7 +231,7 @@ Theme with CSS variables: `--jft-fg`, `--jft-fg-muted`, `--jft-hover`, `--jft-se
 
 ## Not included
 
-Bundled icons, a git or problems source, a context menu, search, a gitignore parser, multi root workspaces and
+Icon packs other than Material, a git or problems source, a context menu, search, a gitignore parser, multi root workspaces and
 variable row heights. They are inputs or events, so you stay in control.
 
 ## Develop
@@ -212,8 +239,13 @@ variable row heights. They are inputs or events, so you stay in control.
 ```sh
 bun install
 bun run dev      # playground with an in memory provider
-bun run check    # typecheck, lint, test, build, dependency guard, package lint
+bun run check    # typecheck, lint, test, generated data, build, dependency guard, package lint
+bun run gen      # regenerate the language table and the Material theme
 ```
+
+The language table and the Material theme are generated from pinned dev dependencies (`linguist-languages`,
+`material-icon-theme`). Bump one on purpose, run `bun run gen`, and commit the regenerated files, because
+`bun run gen:check` fails when they are stale.
 
 `develop` is the working branch. Changes reach `main` by pull request, and a release is a `v*` tag on a commit that
 is already on `main`. The release workflow refuses any other tag, runs the full check, and publishes to npm through
