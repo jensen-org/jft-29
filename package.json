@@ -14,6 +14,21 @@
     "type": "git",
     "url": "git+https://github.com/jensen-org/jft-29.git"
   },
+  "bugs": {
+    "url": "https://github.com/jensen-org/jft-29/issues"
+  },
+  "homepage": "https://github.com/jensen-org/jft-29#readme",
+  "keywords": [
+    "file-tree",
+    "tree",
+    "vue",
+    "explorer",
+    "dependency-free"
+  ],
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
   "exports": {
     ".": {
       "types": "./dist/types/index.d.ts",
