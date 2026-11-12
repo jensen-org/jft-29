@@ -115,6 +115,14 @@ export class Tree {
     return false;
   }
 
+  private refuse(path: string, verb: string): false {
+    return this.fail(
+      "unsupported",
+      path,
+      this.options.readOnly ? "this tree is read only" : `this tree cannot ${verb}`,
+    );
+  }
+
   async start(): Promise<boolean> {
     this.expandedSet.add(this.root);
     if (this.options.provider.watch) {
@@ -135,7 +143,7 @@ export class Tree {
     patch: Partial<
       Pick<
         TreeOptions,
-        "sort" | "filter" | "nest" | "compactFolders" | "multiSelect" | "hideIgnored"
+        "sort" | "filter" | "nest" | "compactFolders" | "multiSelect" | "readOnly" | "hideIgnored"
       >
     >,
   ): void {
@@ -166,7 +174,12 @@ export class Tree {
     return this.editing;
   }
 
+  isReadOnly(): boolean {
+    return this.options.readOnly === true;
+  }
+
   can(write: "create" | "rename" | "move" | "remove"): boolean {
+    if (this.options.readOnly) return false;
     const provider = this.options.provider;
     return write === "move"
       ? Boolean(provider.move ?? provider.rename)
@@ -769,7 +782,7 @@ export class Tree {
   }
 
   async startCreate(parent: string, kind: EntryKind): Promise<boolean> {
-    if (!this.can("create")) return this.fail("unsupported", parent, "this tree cannot create");
+    if (!this.can("create")) return this.refuse(parent, "create");
     const node = this.nodes.get(parent);
     if (node?.kind !== "dir") return this.fail("missing", parent, `${parent} is not a folder`);
     if (parent !== this.root && !(await this.expand(parent))) return false;
@@ -778,7 +791,7 @@ export class Tree {
   }
 
   startRename(path: string): boolean {
-    if (!this.can("rename")) return this.fail("unsupported", path, "this tree cannot rename");
+    if (!this.can("rename")) return this.refuse(path, "rename");
     if (!this.nodes.has(path) || path === this.root) {
       return this.fail("missing", path, `${path} is not in the tree`);
     }
@@ -821,7 +834,7 @@ export class Tree {
 
   async create(parentPath: string, name: string, kind: EntryKind): Promise<boolean> {
     const { create } = this.options.provider;
-    if (!create) return this.fail("unsupported", parentPath, "this tree cannot create");
+    if (!create || !this.can("create")) return this.refuse(parentPath, "create");
     const parent = this.nodes.get(parentPath);
     if (parent?.kind !== "dir") {
       return this.fail("missing", parentPath, `${parentPath} is not a folder`);
@@ -848,13 +861,13 @@ export class Tree {
 
   async rename(from: string, to: string): Promise<boolean> {
     const { rename } = this.options.provider;
-    if (!rename) return this.fail("unsupported", from, "this tree cannot rename");
+    if (!rename || !this.can("rename")) return this.refuse(from, "rename");
     return this.relocate("rename", from, to, () => rename.call(this.options.provider, from, to));
   }
 
   async move(from: string, toDir: string): Promise<boolean> {
     const { move, rename } = this.options.provider;
-    if (!move && !rename) return this.fail("unsupported", from, "this tree cannot move");
+    if (!this.can("move")) return this.refuse(from, "move");
     if (!isWithin(this.root, toDir)) return this.fail("outside-root", toDir, "outside the tree");
     if (toDir === from || isStrictlyWithin(from, toDir)) {
       return this.fail("move", from, "a folder cannot move into itself");
@@ -898,7 +911,7 @@ export class Tree {
 
   async remove(path: string): Promise<boolean> {
     const { remove } = this.options.provider;
-    if (!remove) return this.fail("unsupported", path, "this tree cannot delete");
+    if (!remove || !this.can("remove")) return this.refuse(path, "delete");
     if (!this.nodes.has(path) || path === this.root) {
       return this.fail("missing", path, `${path} is not in the tree`);
     }
@@ -977,7 +990,7 @@ export class Tree {
         else this.activate(row.node.path);
         return true;
       case "F2":
-        if (row) this.startRename(row.node.path);
+        if (row && !this.options.readOnly) this.startRename(row.node.path);
         return true;
       case "Delete":
         this.requestDelete();

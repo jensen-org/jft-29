@@ -362,3 +362,47 @@ describe("start order", () => {
     expect(order).toEqual(["watch", "read"]);
   });
 });
+
+describe("read only", () => {
+  const FILES = ["/p/a.ts", "/p/dir/b.ts"];
+
+  async function readOnlyTree() {
+    const provider = createMemoryProvider(FILES, "/p");
+    const tree = createTree({ provider, root: "/p", readOnly: true, schedule: (run) => run() });
+    const errors: TreeError[] = [];
+    tree.on("error", (error) => errors.push(error));
+    await tree.start();
+    return { provider, tree, errors };
+  }
+
+  it("refuses every write and leaves the provider untouched", async () => {
+    const { provider, tree, errors } = await readOnlyTree();
+    expect(tree.isReadOnly()).toBe(true);
+    for (const op of ["create", "rename", "move", "remove"] as const)
+      expect(tree.can(op)).toBe(false);
+    expect(await tree.create("/p", "n.ts", "file")).toBe(false);
+    expect(await tree.rename("/p/a.ts", "/p/c.ts")).toBe(false);
+    expect(await tree.move("/p/a.ts", "/p/dir")).toBe(false);
+    expect(await tree.remove("/p/a.ts")).toBe(false);
+    expect(await tree.startCreate("/p", "file")).toBe(false);
+    expect(tree.startRename("/p/a.ts")).toBe(false);
+    expect(errors.map((error) => [error.code, error.message])).toEqual(
+      Array(6).fill(["unsupported", "this tree is read only"]),
+    );
+    expect(await provider.readDir("/p")).toHaveLength(2);
+  });
+
+  it("keeps navigation and opening, and stays silent on edit keys", async () => {
+    const { tree, errors } = await readOnlyTree();
+    tree.focus("/p/a.ts");
+    expect(tree.handleKey({ key: "F2" })).toBe(true);
+    expect(tree.handleKey({ key: "Delete" })).toBe(true);
+    expect(errors).toEqual([]);
+    const opened: string[] = [];
+    tree.on("open", ({ path }) => opened.push(path));
+    tree.handleKey({ key: "Enter" });
+    expect(opened).toEqual(["/p/a.ts"]);
+    tree.configure({ readOnly: false });
+    expect(tree.isReadOnly()).toBe(false);
+  });
+});

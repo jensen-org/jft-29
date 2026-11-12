@@ -127,12 +127,13 @@ describe("<FileTree>", () => {
     expect(errors).toEqual(["exists"]);
   });
 
-  it("draws decorations and propagates a dot to ancestor folders", async () => {
+  it("draws decorations and tints ancestor folders without a dot", async () => {
     const decorations = new Map([
       ["/p/src/a.ts", { badge: "M", tone: "modified", hint: "Modified" }],
     ]);
     const { wrapper, tree } = await mounted({ decorations });
-    expect(wrapper.find('[data-path="/p/src"] .jft-dot').exists()).toBe(true);
+    expect(wrapper.find('[data-path="/p/src"]').attributes("data-tone")).toBe("modified");
+    expect(wrapper.find(".jft-dot").exists()).toBe(false);
     await tree.reveal("/p/src/a.ts");
     await flushPromises();
     const badge = wrapper.find('[data-path="/p/src/a.ts"] .jft-badge');
@@ -159,7 +160,100 @@ describe("<FileTree>", () => {
     expect(wrapper.find('[data-path="/p/README.md"] img').attributes("src")).toBe(
       "/icons/markdown.svg",
     );
+    expect(wrapper.find('[data-path="/p/docs"] .jft-icon').exists()).toBe(false);
+  });
+
+  it("draws folder icons only when asked", async () => {
+    const { wrapper } = await mounted({
+      iconTheme: { file: "file", folder: "folder", fileExtensions: {} },
+      iconUrl: (id: string) => `/icons/${id}.svg`,
+      folderIcons: true,
+    });
     expect(wrapper.find('[data-path="/p/docs"] img').attributes("src")).toBe("/icons/folder.svg");
+  });
+
+  it("tints a folder with the strongest tone of the decorations below it", async () => {
+    const decorations = new Map([
+      ["/p/src/a.ts", { tone: "modified" }],
+      ["/p/src/deep/er/b.ts", { tone: "error" }],
+    ]);
+    const { wrapper, tree } = await mounted({ decorations });
+    await tree.reveal("/p/src/deep/er/b.ts");
+    await flushPromises();
+    for (const path of ["/p/src", "/p/src/deep", "/p/src/deep/er"]) {
+      expect(wrapper.find(`[data-path="${path}"]`).attributes("data-tone")).toBe("error");
+    }
+    expect(wrapper.find('[data-path="/p/src/a.ts"]').attributes("data-tone")).toBe("modified");
+  });
+
+  it("indents each level by the indent prop", async () => {
+    const { wrapper, tree } = await mounted({ indent: 8 });
+    await tree.reveal("/p/src/a.ts");
+    await flushPromises();
+    const padding = (path: string) =>
+      (wrapper.find(`[data-path="${path}"]`).element as HTMLElement).style.paddingLeft;
+    expect(padding("/p/src")).toBe("4px");
+    expect(padding("/p/src/a.ts")).toBe("12px");
+  });
+
+  it("reserves one status column on every row so letters share a right edge", async () => {
+    const { wrapper } = await mounted();
+    const rows = wrapper.findAll('[role="treeitem"]');
+    expect(rows.length).toBeGreaterThan(0);
+    for (const row of rows) expect(row.find(".jft-status").exists()).toBe(true);
+  });
+
+  it("runs a row action on the row's node without toggling or opening it", async () => {
+    const run: string[] = [];
+    const { wrapper } = await mounted({
+      rowActions: [
+        {
+          id: "rename",
+          label: "Rename",
+          icon: { render: () => null },
+          run: (n: { path: string }) => run.push(n.path),
+        },
+        {
+          id: "gone",
+          label: "Hidden",
+          icon: { render: () => null },
+          run: () => {},
+          when: () => false,
+        },
+      ],
+    });
+    const row = wrapper.find('[data-path="/p/src"]');
+    expect(row.findAll(".jft-row-action")).toHaveLength(1);
+    await row.find(".jft-row-action").trigger("click");
+    expect(run).toEqual(["/p/src"]);
+    expect(row.attributes("aria-expanded")).toBe("false");
+    expect(wrapper.emitted("open")).toBeUndefined();
+  });
+
+  it("offers a read only mode: no actions, no dragging, no drops, no edits", async () => {
+    const provider = createMemoryProvider(FILES, "/p");
+    const tree = createTree({ provider, root: "/p", readOnly: true, schedule: (run) => run() });
+    await tree.start();
+    const wrapper = mount(FileTree, {
+      props: {
+        tree,
+        rowActions: [{ id: "x", label: "X", icon: { render: () => null }, run: () => {} }],
+      },
+      attachTo: document.body,
+    });
+    await flushPromises();
+    expect(wrapper.find('[role="tree"]').attributes("aria-label")).toBe("Files (read only)");
+    expect(wrapper.find(".jft-row-action").exists()).toBe(false);
+    const row = wrapper.find('[data-path="/p/README.md"]');
+    expect(row.attributes("draggable")).toBe("false");
+    const transfer = { types: ["application/x-jft-paths"], setData: () => {}, dropEffect: "" };
+    fire(row.element, "dragstart", transfer);
+    fire(wrapper.find('[data-path="/p/docs"]').element, "drop", transfer);
+    await flushPromises();
+    expect(wrapper.emitted("dragstart")).toBeUndefined();
+    expect(wrapper.emitted("drop")).toBeUndefined();
+    await row.trigger("click");
+    expect(wrapper.emitted("open")?.[0]).toEqual([{ path: "/p/README.md", preview: true }]);
   });
 
   it("builds its own tree from provider and root", async () => {
@@ -277,11 +371,11 @@ describe("git status", () => {
     expect(wrapper.find('[data-path="/p/src/a.ts"]').attributes("data-staged")).toBe("true");
   });
 
-  it("tints a folder with the worst status below it and puts a dot in that tone", async () => {
+  it("tints a folder with the worst status below it and draws no dot", async () => {
     const { wrapper } = await withGit([{ path: "/p/src/a.ts", status: "conflicted" }]);
     const folder = wrapper.find('[data-path="/p/src"]');
     expect(folder.attributes("data-tone")).toBe("conflicted");
-    expect(folder.find(".jft-dot").attributes("data-tone")).toBe("conflicted");
+    expect(folder.find(".jft-dot").exists()).toBe(false);
     expect(folder.find(".jft-badge").exists()).toBe(false);
   });
 

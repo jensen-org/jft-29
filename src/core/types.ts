@@ -155,6 +155,7 @@ export interface TreeOptions {
   nest?: (children: TreeNode[]) => Map<string, string[]>;
   compactFolders?: boolean;
   multiSelect?: boolean;
+  readOnly?: boolean;
   hideIgnored?: boolean;
   plugins?: TreePlugin[];
   schedule?: (run: () => void) => void;
