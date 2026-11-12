@@ -5,7 +5,6 @@ export type {
   DragStartPayload,
   DropPayload,
   MenuEntry,
-  ProblemCounts,
   RowAction,
   ToolbarAction,
 } from "./types.js";

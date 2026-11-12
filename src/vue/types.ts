@@ -8,11 +8,6 @@ export interface Decoration {
   propagate?: boolean;
 }
 
-export interface ProblemCounts {
-  errors: number;
-  warnings: number;
-}
-
 export interface ToolbarAction {
   id: string;
   label: string;

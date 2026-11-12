@@ -3,6 +3,7 @@ import { flushPromises, mount } from "@vue/test-utils";
 import { describe, expect, it } from "vitest";
 import { createMemoryProvider } from "../../src/core/memory";
 import { createTree } from "../../src/core/model";
+import { Problems } from "../../src/core/problems";
 import { FileTree } from "../../src/vue";
 
 const FILES = ["/p/src/a.ts", "/p/src/deep/er/b.ts", "/p/README.md", "/p/docs/"];
@@ -197,6 +198,18 @@ describe("<FileTree>", () => {
     expect(wrapper.find('[data-path="/p/src/deep/er/b.ts"]').attributes("data-tone")).toBe("error");
     expect(wrapper.find('[data-path="/p/src/a.ts"]').attributes("data-tone")).toBe("warning");
     expect(wrapper.find('[data-path="/p/src"]').attributes("data-tone")).toBe("error");
+  });
+
+  it("follows a Problems source live as diagnostics are published", async () => {
+    const problems = new Problems();
+    const { wrapper } = await mounted({ problems });
+    expect(wrapper.find('[data-path="/p/src"]').attributes("data-tone")).toBeUndefined();
+    problems.publish("ra", { uri: "file:///p/src/a.ts", diagnostics: [{ severity: 1 }] });
+    await flushPromises();
+    expect(wrapper.find('[data-path="/p/src"]').attributes("data-tone")).toBe("error");
+    problems.publish("ra", { uri: "file:///p/src/a.ts", diagnostics: [] });
+    await flushPromises();
+    expect(wrapper.find('[data-path="/p/src"]').attributes("data-tone")).toBeUndefined();
   });
 
   it("draws no problem tone when showProblems is false", async () => {

@@ -10,4 +10,11 @@ export {
 export { createMemoryProvider, type MemoryProvider } from "./core/memory.js";
 export { createTree, Tree } from "./core/model.js";
 export { ancestorsBetween, basename, dirname, isWithin, join } from "./core/paths.js";
+export {
+  fileUriToPath,
+  type ProblemCounts,
+  Problems,
+  type ProblemsOptions,
+  type PublishedDiagnostics,
+} from "./core/problems.js";
 export * from "./core/types.js";

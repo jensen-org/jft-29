@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch 
 import { createIconResolver, type IconThemeManifest, type IconVariant } from "../core/icons.js";
 import { createTree, type Tree } from "../core/model.js";
 import { ancestorsBetween, dirname, isStrictlyWithin } from "../core/paths.js";
+import { type ProblemCounts, Problems } from "../core/problems.js";
 import {
   type EditState,
   type GitStatus,
@@ -21,7 +22,6 @@ import {
   type DropPayload,
   type MenuEntry,
   PATHS_MIME,
-  type ProblemCounts,
   type RowAction,
   type ToolbarAction,
 } from "./types.js";
@@ -35,7 +35,7 @@ const props = withDefaults(
     iconUrl?: (definition: string) => string | undefined;
     iconVariant?: IconVariant;
     decorations?: ReadonlyMap<string, Decoration>;
-    problems?: ReadonlyMap<string, ProblemCounts>;
+    problems?: ReadonlyMap<string, ProblemCounts> | Problems;
     showProblems?: boolean;
     filter?: (node: TreeNode) => boolean;
     sort?: (a: TreeNode, b: TreeNode) => number;
@@ -260,12 +260,34 @@ function problemDecoration({ errors, warnings }: ProblemCounts): Decoration | nu
   return null;
 }
 
+const problemsVersion = ref(0);
+watch(
+  () => props.problems,
+  (source, _previous, onCleanup) => {
+    problemsVersion.value += 1;
+    if (!(source instanceof Problems)) return;
+    onCleanup(
+      source.subscribe(() => {
+        problemsVersion.value += 1;
+      }),
+    );
+  },
+  { immediate: true },
+);
+
+const problemCounts = computed<ReadonlyMap<string, ProblemCounts> | undefined>(() => {
+  void problemsVersion.value;
+  const source = props.problems;
+  return source instanceof Problems ? source.counts() : source;
+});
+
 const shown = computed<ReadonlyMap<string, Decoration> | undefined>(() => {
-  if (!props.showProblems || !props.problems || props.problems.size === 0) {
+  const problems = problemCounts.value;
+  if (!props.showProblems || !problems || problems.size === 0) {
     return props.decorations;
   }
   const merged = new Map(props.decorations);
-  for (const [path, counts] of props.problems) {
+  for (const [path, counts] of problems) {
     const decoration = problemDecoration(counts);
     if (decoration && !merged.has(path)) merged.set(path, decoration);
   }

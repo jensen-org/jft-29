@@ -4,7 +4,8 @@
 
 Problems are a tree feature.
 
-- New `problems` prop, a `Map<path, { errors, warnings }>`. A file with errors takes the `error` tone, a file with only warnings the new `warning` tone, and every folder above it the strongest tone below it. `showProblems` (default `true`) hides the tint without clearing the map. An explicit decoration on the same path wins.
+- New `Problems` source for language servers: `publish(server, publishDiagnostics params)`, `clear(server)`, `counts()` and `subscribe()`. The tree follows it live.
+- New `problems` prop, a `Problems` source or a `Map<path, { errors, warnings }>`. A file with errors takes the `error` tone, a file with only warnings the new `warning` tone, and every folder above it the strongest tone below it. `showProblems` (default `true`) hides the tint without clearing the map. An explicit decoration on the same path wins.
 
 ## 0.3.1
 
