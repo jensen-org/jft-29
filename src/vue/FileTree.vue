@@ -3,6 +3,7 @@ import { computed, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch 
 import { createIconResolver, type IconThemeManifest, type IconVariant } from "../core/icons.js";
 import { createTree, type Tree } from "../core/model.js";
 import { ancestorsBetween, dirname, isStrictlyWithin } from "../core/paths.js";
+import { type ProblemCounts, Problems } from "../core/problems.js";
 import {
   type EditState,
   type GitStatus,
@@ -34,6 +35,8 @@ const props = withDefaults(
     iconUrl?: (definition: string) => string | undefined;
     iconVariant?: IconVariant;
     decorations?: ReadonlyMap<string, Decoration>;
+    problems?: ReadonlyMap<string, ProblemCounts> | Problems;
+    showProblems?: boolean;
     filter?: (node: TreeNode) => boolean;
     sort?: (a: TreeNode, b: TreeNode) => number;
     nest?: (children: TreeNode[]) => Map<string, string[]>;
@@ -51,7 +54,7 @@ const props = withDefaults(
     indent?: number;
     label?: string;
   }>(),
-  { rowHeight: 24, indent: 4, label: "Files", iconVariant: "dark" },
+  { rowHeight: 24, indent: 4, label: "Files", iconVariant: "dark", showProblems: true },
 );
 
 const emit = defineEmits<{
@@ -228,6 +231,7 @@ const resolver = computed(() =>
 
 const TONE_RANK = [
   "error",
+  "warning",
   "conflicted",
   "deleted",
   "removed",
@@ -248,11 +252,53 @@ function strongest(first: string | undefined, second: string | undefined): strin
   return rankOf(second) < rankOf(first) ? second : first;
 }
 
+function problemDecoration({ errors, warnings }: ProblemCounts): Decoration | null {
+  if (errors > 0) return { tone: "error", hint: errors === 1 ? "1 error" : `${errors} errors` };
+  if (warnings > 0) {
+    return { tone: "warning", hint: warnings === 1 ? "1 warning" : `${warnings} warnings` };
+  }
+  return null;
+}
+
+const problemsVersion = ref(0);
+watch(
+  () => props.problems,
+  (source, _previous, onCleanup) => {
+    problemsVersion.value += 1;
+    if (!(source instanceof Problems)) return;
+    onCleanup(
+      source.subscribe(() => {
+        problemsVersion.value += 1;
+      }),
+    );
+  },
+  { immediate: true },
+);
+
+const problemCounts = computed<ReadonlyMap<string, ProblemCounts> | undefined>(() => {
+  void problemsVersion.value;
+  const source = props.problems;
+  return source instanceof Problems ? source.counts() : source;
+});
+
+const shown = computed<ReadonlyMap<string, Decoration> | undefined>(() => {
+  const problems = problemCounts.value;
+  if (!props.showProblems || !problems || problems.size === 0) {
+    return props.decorations;
+  }
+  const merged = new Map(props.decorations);
+  for (const [path, counts] of problems) {
+    const decoration = problemDecoration(counts);
+    if (decoration && !merged.has(path)) merged.set(path, decoration);
+  }
+  return merged;
+});
+
 const inheritedTones = computed(() => {
   const tones = new Map<string, string>();
   const current = tree.value;
-  if (!current || !props.decorations) return tones;
-  for (const [path, decoration] of props.decorations) {
+  if (!current || !shown.value) return tones;
+  for (const [path, decoration] of shown.value) {
     if (decoration.propagate === false || !decoration.tone) continue;
     for (const ancestor of ancestorsBetween(current.root, path)) {
       const winner = strongest(tones.get(ancestor), decoration.tone);
@@ -371,7 +417,7 @@ const GIT_LETTERS: Record<GitStatus, string> = {
 };
 
 function toneOf(row: Row): string | undefined {
-  const decorated = props.decorations?.get(row.node.path)?.tone;
+  const decorated = shown.value?.get(row.node.path)?.tone;
   if (decorated) return decorated;
   if (row.ignored) return "ignored";
   if (row.status) return row.status;
@@ -805,17 +851,17 @@ defineExpose({ tree, scrollToPath, focus });
                 />
                 <span class="jft-status">
                   <slot
-                    v-if="decorations?.get(entries[index]!.row!.node.path)?.badge"
+                    v-if="shown?.get(entries[index]!.row!.node.path)?.badge"
                     name="badge"
                     :node="entries[index]!.row!.node"
-                    :decoration="decorations!.get(entries[index]!.row!.node.path)!"
+                    :decoration="shown!.get(entries[index]!.row!.node.path)!"
                   >
                     <span
                       class="jft-badge"
-                      :data-tone="decorations!.get(entries[index]!.row!.node.path)!.tone"
-                      :aria-label="decorations!.get(entries[index]!.row!.node.path)!.hint"
+                      :data-tone="shown!.get(entries[index]!.row!.node.path)!.tone"
+                      :aria-label="shown!.get(entries[index]!.row!.node.path)!.hint"
                     >
-                      {{ decorations!.get(entries[index]!.row!.node.path)!.badge }}
+                      {{ shown!.get(entries[index]!.row!.node.path)!.badge }}
                     </span>
                   </slot>
                   <slot
