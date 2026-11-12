@@ -438,3 +438,14 @@ describe("<FileTree> at scale", () => {
     expect(wrapper.findAll('[role="treeitem"]').length).toBeLessThan(120);
   }, 30_000);
 });
+
+describe("<FileTree> default indent", () => {
+  it("steps a nested row in by 4 px", async () => {
+    const { wrapper, tree } = await mounted();
+    await tree.reveal("/p/src/a.ts");
+    await flushPromises();
+    const padding = (path: string) =>
+      (wrapper.find(`[data-path="${path}"]`).element as HTMLElement).style.paddingLeft;
+    expect(padding("/p/src/a.ts")).toBe("8px");
+  });
+});

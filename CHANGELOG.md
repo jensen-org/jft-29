@@ -4,7 +4,7 @@
 
 Visual changes, a read only mode and large tree performance.
 
-- Rows are quieter. The indent is 8 px a level (was 16), folders draw no icon unless `folderIcons` is set, and the inherited status dot is gone: a folder is tinted by the strongest tone below it, from git or from `decorations` with a `tone`.
+- Rows are quieter. The indent is 4 px a level (was 16), folders draw no icon unless `folderIcons` is set, and the inherited status dot is gone: a folder is tinted by the strongest tone below it, from git or from `decorations` with a `tone`.
 - The status letter sits in one fixed column at the right edge (`--jft-status-width`), and the `row` slot is laid out just left of it, so host columns align.
 - `rowActions` draws plain icon buttons that are hidden at rest. On hover the status slides left to make room for them (`--jft-actions-width`, `--jft-slide`).
 - `readOnly`, on the component, `createTree` and `tree.configure`, refuses create, rename, move and delete, ignores F2 and Delete, stops dragging and dropping, and hides row actions. `tree.isReadOnly()` reads it back.

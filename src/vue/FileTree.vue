@@ -51,7 +51,7 @@ const props = withDefaults(
     indent?: number;
     label?: string;
   }>(),
-  { rowHeight: 24, indent: 8, label: "Files", iconVariant: "dark" },
+  { rowHeight: 24, indent: 4, label: "Files", iconVariant: "dark" },
 );
 
 const emit = defineEmits<{

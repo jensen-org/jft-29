@@ -235,7 +235,7 @@ plugin's `extensions` and `fileNames` options for anything project specific.
 
 **Props:** `tree`, `provider`, `root`, `iconTheme`, `iconUrl`, `iconVariant`, `decorations`, `filter`, `sort`,
 `nest`, `plugins`, `compactFolders`, `multiSelect`, `readOnly`, `followActive`, `activePath`, `actions`, `rowActions`,
-`menu`, `folderIcons`, `rowHeight`, `indent` (8 px a level), `label`.
+`menu`, `folderIcons`, `rowHeight`, `indent` (4 px a level), `label`.
 
 **Events:** `open`, `select`, `contextmenu`, `error`, `dragstart`, `drop`, `created`, `renamed`, `moved`,
 `removed`, `deleteRequest`, `changed`.
