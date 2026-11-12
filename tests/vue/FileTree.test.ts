@@ -415,3 +415,26 @@ describe("git status", () => {
     expect(wrapper.find('[data-path="/p/README.md"] .mine').text()).toBe("added");
   });
 });
+
+describe("<FileTree> at scale", () => {
+  it("renders a window of a hundred thousand rows, not all of them", async () => {
+    const entries = Array.from({ length: 100_000 }, (_, i) => ({
+      name: `f-${String(i).padStart(6, "0")}.ts`,
+      kind: "file" as const,
+    }));
+    const tree = createTree({
+      provider: { readDir: async () => entries },
+      root: "/p",
+      schedule: (run) => run(),
+    });
+    await tree.start();
+    const wrapper = mount(FileTree, { props: { tree }, attachTo: document.body });
+    await flushPromises();
+    expect(wrapper.findAll('[role="treeitem"]').length).toBeLessThan(120);
+    expect(wrapper.find(".jft-sizer").attributes("style")).toContain("height: 2400000px");
+    tree.focus("/p/f-099999.ts");
+    await flushPromises();
+    expect(wrapper.find('[data-path="/p/f-099999.ts"]').exists()).toBe(true);
+    expect(wrapper.findAll('[role="treeitem"]').length).toBeLessThan(120);
+  }, 30_000);
+});

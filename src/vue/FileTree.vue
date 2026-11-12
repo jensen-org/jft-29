@@ -274,6 +274,14 @@ function rowActionsFor(row: Row): RowAction[] {
   return (props.rowActions ?? []).filter((action) => action.when?.(row.node) ?? true);
 }
 
+const createdAt = computed(() => entries.value.findIndex((entry) => entry.create));
+
+function entryIndex(path: string): number {
+  const at = tree.value?.rowIndex(path) ?? -1;
+  if (at === -1) return -1;
+  return createdAt.value !== -1 && at >= createdAt.value ? at + 1 : at;
+}
+
 const visibleIndexes = computed(() => {
   const total = entries.value.length;
   const height = viewport.value;
@@ -284,20 +292,15 @@ const visibleIndexes = computed(() => {
       : Math.min(total, first + UNMEASURED_ROWS);
   const indexes: number[] = [];
   for (let i = first; i < last; i += 1) indexes.push(i);
-  const focused = tree.value?.focused();
-  if (focused) {
-    const at = entries.value.findIndex((entry) =>
-      entry.row?.chain.some((node) => node.path === focused),
-    );
-    if (at !== -1 && (at < first || at >= last)) indexes.push(at);
-  }
+  const at = focusedIndex.value;
+  if (at !== -1 && (at < first || at >= last)) indexes.push(at);
   return indexes;
 });
 
 const focusedIndex = computed(() => {
+  void version.value;
   const focused = tree.value?.focused();
-  if (!focused) return -1;
-  return entries.value.findIndex((entry) => entry.row?.chain.some((node) => node.path === focused));
+  return focused ? entryIndex(focused) : -1;
 });
 
 const activeDescendant = computed(() =>
@@ -392,7 +395,7 @@ function onScroll(): void {
 function scrollToPath(path: string, mode: "nearest" | "center"): void {
   void nextTick(() => {
     const el = body.value;
-    const at = entries.value.findIndex((entry) => entry.row?.chain.some((n) => n.path === path));
+    const at = entryIndex(path);
     if (!el || at === -1) return;
     const top = at * props.rowHeight;
     const bottom = top + props.rowHeight;

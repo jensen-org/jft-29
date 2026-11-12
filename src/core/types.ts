@@ -25,8 +25,14 @@ export interface Disposable {
   dispose(): void;
 }
 
+export interface DirPage {
+  entries: Entry[];
+  next: number | null;
+}
+
 export interface TreeProvider {
   readDir(path: string): Promise<Entry[]>;
+  readDirPage?(path: string, cursor: number | null): Promise<DirPage>;
   watch?(emit: (batch: FsEvent[]) => void): Disposable;
   create?(parent: string, name: string, kind: EntryKind): Promise<void>;
   rename?(from: string, to: string): Promise<void>;
@@ -159,4 +165,5 @@ export interface TreeOptions {
   hideIgnored?: boolean;
   plugins?: TreePlugin[];
   schedule?: (run: () => void) => void;
+  pageInterval?: number;
 }
