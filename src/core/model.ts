@@ -86,6 +86,7 @@ export class Tree {
   private cache: { version: number; rows: Row[]; index: Map<string, number> | null } | null = null;
   private typed = { buffer: "", at: 0 };
   private git = new Map<string, GitInfo>();
+  private rerun = new Set<string>();
   private inheritedCache: { version: number; map: Map<string, GitStatus> } | null = null;
 
   constructor(options: TreeOptions) {
@@ -252,9 +253,16 @@ export class Tree {
     if (node?.kind !== "dir") return Promise.resolve(false);
     const running = this.inflight.get(path);
     if (running) return running;
-    const run = this.read(node).finally(() => this.inflight.delete(path));
+    const run = this.readUntilFresh(node).finally(() => this.inflight.delete(path));
     this.inflight.set(path, run);
     return run;
+  }
+
+  private async readUntilFresh(node: TreeNode): Promise<boolean> {
+    let ok = await this.read(node);
+    while (ok && this.rerun.delete(node.path)) ok = await this.read(node);
+    this.rerun.delete(node.path);
+    return ok;
   }
 
   private async read(node: TreeNode): Promise<boolean> {
@@ -516,10 +524,20 @@ export class Tree {
     this.flushScheduled = false;
     if (this.disposed || this.editing || this.queue.length === 0) return;
     const events = coalesce(this.queue.splice(0));
+    const selected = this.selectionKey();
     let structural = false;
     for (const event of events) structural = this.apply(event) || structural;
     if (structural) this.bump();
+    this.announceSelection(selected);
     this.emit("watched", undefined);
+  }
+
+  private selectionKey(): string {
+    return this.selectedSet.size === 0 ? "" : [...this.selectedSet].join("\0");
+  }
+
+  private announceSelection(before: string): void {
+    if (this.selectionKey() !== before) this.emit("select", { paths: this.selection() });
   }
 
   report(error: TreeError): void {
@@ -572,6 +590,7 @@ export class Tree {
     for (const dir of dirs) {
       if (dir.path === path || dir.path === this.root || this.expandedSet.has(dir.path)) {
         if (dir.state === "unloaded") continue;
+        if (this.inflight.has(dir.path)) this.rerun.add(dir.path);
         reload.push(this.load(dir.path));
       } else if (dir.children) {
         for (const child of [...dir.children]) this.detach(child);
@@ -973,6 +992,10 @@ export class Tree {
       return this.fail("missing", from, `${from} is not in the tree`);
     }
     if (this.nodes.has(to)) return this.fail("exists", to, `${basename(to)} already exists there`);
+    const destination = this.nodes.get(dirname(to));
+    if (destination?.kind !== "dir" || destination.state !== "loaded") {
+      return this.fail("missing", to, "the destination is not loaded");
+    }
     if (!this.rekey(from, to)) return this.fail("missing", to, "the destination is not loaded");
     this.bump();
     try {
@@ -994,8 +1017,10 @@ export class Tree {
     if (!this.nodes.has(path) || path === this.root) {
       return this.fail("missing", path, `${path} is not in the tree`);
     }
+    const selected = this.selectionKey();
     const snapshot = this.detach(path);
     this.bump();
+    this.announceSelection(selected);
     try {
       await remove.call(this.options.provider, path);
     } catch (cause) {
@@ -1082,7 +1107,10 @@ export class Tree {
         return Boolean(this.editing);
       case "*":
         if (!row) return true;
-        for (const sibling of rows.filter((r) => r.depth === row.depth && r.expandable)) {
+        const parent = row.chain[0]?.parent;
+        for (const sibling of rows.filter(
+          (r) => r.depth === row.depth && r.expandable && r.chain[0]?.parent === parent,
+        )) {
           void this.expand(sibling.id);
         }
         return true;

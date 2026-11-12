@@ -406,3 +406,68 @@ describe("read only", () => {
     expect(tree.isReadOnly()).toBe(false);
   });
 });
+
+describe("bug hunt", () => {
+  it("tells the host when a watched delete removes a selected path", async () => {
+    const { tree } = await started();
+    tree.select("/p/README.md");
+    const events: string[][] = [];
+    tree.on("select", ({ paths }) => events.push(paths));
+    tree.push([{ type: "delete", path: "/p/README.md" }]);
+    tree.flush();
+    expect(tree.selection()).toEqual([]);
+    expect(events).toEqual([[]]);
+  });
+
+  it("keeps a node in place and reports an error when its rename target folder is not loaded", async () => {
+    const { tree, errors } = await started();
+    expect(await tree.rename("/p/README.md", "/p/src/deep/README.md")).toBe(false);
+    expect(tree.get("/p/README.md")).toBeDefined();
+    expect(errors.at(-1)?.code).toBe("missing");
+  });
+
+  it("star expands only the siblings of the focused row", async () => {
+    const files = ["/p/a/x/f.ts", "/p/b/y/f.ts", "/p/c/z/f.ts"];
+    const { tree } = await started(files);
+    await tree.expand("/p/a");
+    await tree.expand("/p/b");
+    await tree.expand("/p/c");
+    tree.focus("/p/a/x");
+    tree.handleKey({ key: "*" });
+    await Promise.resolve();
+    expect(tree.isExpanded("/p/a/x")).toBe(true);
+    expect(tree.isExpanded("/p/b/y")).toBe(false);
+    expect(tree.isExpanded("/p/c/z")).toBe(false);
+  });
+
+  it("reads again when a rescan arrives while a read is already running", async () => {
+    let listing = [{ name: "a.ts", kind: "file" as const }];
+    const gates: (() => void)[] = [];
+    let reads = 0;
+    const provider = {
+      async readDir() {
+        reads += 1;
+        const snapshot = listing;
+        await new Promise<void>((resolve) => gates.push(resolve));
+        return snapshot;
+      },
+    };
+    const tree = createTree({ provider, root: "/p", schedule: (run) => run() });
+    const starting = tree.start();
+    await Promise.resolve();
+    listing = [
+      { name: "a.ts", kind: "file" },
+      { name: "b.ts", kind: "file" },
+    ];
+    const invalidating = tree.invalidate("/p");
+    const release = async () => {
+      await vi.waitFor(() => expect(gates.length).toBeGreaterThan(0));
+      gates.shift()?.();
+    };
+    await release();
+    await release();
+    await Promise.all([starting, invalidating]);
+    expect(reads).toBe(2);
+    expect(tree.rows().map((row) => row.node.name)).toEqual(["a.ts", "b.ts"]);
+  });
+});
