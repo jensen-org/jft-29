@@ -20,6 +20,7 @@
   --jft-ignored-opacity: 0.55;
   --jft-tone-info: light-dark(#0969da, #58a6ff);
   --jft-tone-error: light-dark(#cf222e, #f85149);
+  --jft-tone-warning: light-dark(#9a6700, #d29922);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -325,6 +326,11 @@
 .jft-badge[data-tone="conflicted"],
 .jft-label[data-tone="conflicted"] {
   color: var(--jft-tone-conflicted);
+}
+
+.jft-badge[data-tone="warning"],
+.jft-label[data-tone="warning"] {
+  color: var(--jft-tone-warning);
 }
 
 .jft-badge[data-tone="ignored"] {
