@@ -1,5 +1,13 @@
 * @pallandir
 /.github/ @pallandir
+/.github/CODEOWNERS @pallandir
 /.githooks/ @pallandir
+/.opencodereview/ @pallandir
 /scripts/ @pallandir
+/AGENTS.md @pallandir
+/SECURITY.md @pallandir
 /package.json @pallandir
+/bun.lock @pallandir
+/vite.config.ts @pallandir
+/tsconfig*.json @pallandir
+/biome.json @pallandir

@@ -10,6 +10,7 @@ import {
   trimTrailing,
 } from "./paths.js";
 import {
+  type DirPage,
   type Disposable,
   type EditState,
   type EntryKind,
@@ -51,10 +52,13 @@ interface Snapshot {
 }
 
 const TYPE_AHEAD_RESET_MS = 800;
+const PAGE_REPAINT_MS = 100;
+
+const NAME_COLLATOR = new Intl.Collator(undefined, { numeric: true, sensitivity: "base" });
 
 function defaultSort(a: TreeNode, b: TreeNode): number {
   if (a.kind !== b.kind) return a.kind === "dir" ? -1 : 1;
-  return a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: "base" });
+  return NAME_COLLATOR.compare(a.name, b.name);
 }
 
 function defaultSchedule(run: () => void): void {
@@ -79,9 +83,10 @@ export class Tree {
   private watcher: Disposable | null = null;
   private disposed = false;
   private version = 0;
-  private cache: { version: number; rows: Row[] } | null = null;
+  private cache: { version: number; rows: Row[]; index: Map<string, number> | null } | null = null;
   private typed = { buffer: "", at: 0 };
   private git = new Map<string, GitInfo>();
+  private rerun = new Set<string>();
   private inheritedCache: { version: number; map: Map<string, GitStatus> } | null = null;
 
   constructor(options: TreeOptions) {
@@ -110,9 +115,21 @@ export class Tree {
     this.emit("change", undefined);
   }
 
+  private touch(): void {
+    this.emit("change", undefined);
+  }
+
   private fail(code: TreeErrorCode, path: string, message: string, cause?: unknown): false {
     this.emit("error", new TreeError(code, path, message, cause));
     return false;
+  }
+
+  private refuse(path: string, verb: string): false {
+    return this.fail(
+      "unsupported",
+      path,
+      this.options.readOnly ? "this tree is read only" : `this tree cannot ${verb}`,
+    );
   }
 
   async start(): Promise<boolean> {
@@ -135,7 +152,7 @@ export class Tree {
     patch: Partial<
       Pick<
         TreeOptions,
-        "sort" | "filter" | "nest" | "compactFolders" | "multiSelect" | "hideIgnored"
+        "sort" | "filter" | "nest" | "compactFolders" | "multiSelect" | "readOnly" | "hideIgnored"
       >
     >,
   ): void {
@@ -166,7 +183,12 @@ export class Tree {
     return this.editing;
   }
 
+  isReadOnly(): boolean {
+    return this.options.readOnly === true;
+  }
+
   can(write: "create" | "rename" | "move" | "remove"): boolean {
+    if (this.options.readOnly) return false;
     const provider = this.options.provider;
     return write === "move"
       ? Boolean(provider.move ?? provider.rename)
@@ -194,15 +216,36 @@ export class Tree {
     return node;
   }
 
-  private compare(a: string, b: string): number {
-    const left = this.nodes.get(a);
-    const right = this.nodes.get(b);
-    if (!left || !right) return 0;
-    return (this.options.sort ?? defaultSort)(left, right);
+  private sortChildren(node: TreeNode): void {
+    const children = node.children;
+    if (!children) return;
+    const compare = this.options.sort ?? defaultSort;
+    const known = children.flatMap((path) => {
+      const child = this.nodes.get(path);
+      return child ? [{ path, child }] : [];
+    });
+    known.sort((a, b) => compare(a.child, b.child));
+    node.children = known.map((entry) => entry.path);
   }
 
-  private sortChildren(node: TreeNode): void {
-    node.children?.sort((a, b) => this.compare(a, b));
+  private insertSorted(parent: TreeNode, child: TreeNode): void {
+    const children = parent.children ?? [];
+    const compare = this.options.sort ?? defaultSort;
+    let low = 0;
+    let high = children.length;
+    while (low < high) {
+      const middle = (low + high) >>> 1;
+      const at = this.nodes.get(children[middle] ?? "");
+      if (at && compare(at, child) <= 0) low = middle + 1;
+      else high = middle;
+    }
+    children.splice(low, 0, child.path);
+    parent.children = children;
+  }
+
+  private removeChild(parent: TreeNode | undefined, path: string): void {
+    const at = parent?.children?.indexOf(path) ?? -1;
+    if (at !== -1) parent?.children?.splice(at, 1);
   }
 
   load(path: string): Promise<boolean> {
@@ -210,9 +253,16 @@ export class Tree {
     if (node?.kind !== "dir") return Promise.resolve(false);
     const running = this.inflight.get(path);
     if (running) return running;
-    const run = this.read(node).finally(() => this.inflight.delete(path));
+    const run = this.readUntilFresh(node).finally(() => this.inflight.delete(path));
     this.inflight.set(path, run);
     return run;
+  }
+
+  private async readUntilFresh(node: TreeNode): Promise<boolean> {
+    let ok = await this.read(node);
+    while (ok && this.rerun.delete(node.path)) ok = await this.read(node);
+    this.rerun.delete(node.path);
+    return ok;
   }
 
   private async read(node: TreeNode): Promise<boolean> {
@@ -221,11 +271,16 @@ export class Tree {
       this.bump();
     }
     try {
-      const entries = await this.options.provider.readDir(node.path);
-      if (this.disposed || this.nodes.get(node.path) !== node) return false;
-      this.reconcile(node, entries);
-      node.state = "loaded";
-      this.bump();
+      const { provider } = this.options;
+      if (provider.readDirPage) {
+        if (!(await this.readPages(node, provider.readDirPage.bind(provider)))) return false;
+      } else {
+        const entries = await provider.readDir(node.path);
+        if (this.disposed || this.nodes.get(node.path) !== node) return false;
+        this.reconcile(node, entries);
+        node.state = "loaded";
+        this.bump();
+      }
     } catch (cause) {
       if (this.disposed || this.nodes.get(node.path) !== node) return false;
       node.state = "error";
@@ -236,12 +291,42 @@ export class Tree {
     return true;
   }
 
-  private reconcile(
+  private async readPages(
+    node: TreeNode,
+    readPage: (path: string, cursor: number | null) => Promise<DirPage>,
+  ): Promise<boolean> {
+    const listed = new Set<string>();
+    let cursor: number | null = null;
+    let painted = 0;
+    do {
+      const page: DirPage = await readPage(node.path, cursor);
+      if (this.disposed || this.nodes.get(node.path) !== node) return false;
+      const fresh = this.absorb(node, page.entries, listed);
+      if (cursor === null) {
+        node.children = [...(node.children ?? []), ...fresh.map((child) => child.path)];
+        this.sortChildren(node);
+      } else {
+        for (const child of fresh) this.insertSorted(node, child);
+      }
+      cursor = page.next;
+      const now = Date.now();
+      if (cursor === null || painted === 0 || now - painted >= PAGE_REPAINT_MS) {
+        painted = now;
+        this.bump();
+      }
+    } while (cursor !== null);
+    this.prune(node, listed);
+    node.state = "loaded";
+    this.bump();
+    return true;
+  }
+
+  private absorb(
     node: TreeNode,
     entries: { name: string; kind: EntryKind; ignored?: boolean }[],
-  ): void {
-    const next: string[] = [];
-    const listed = new Set<string>();
+    listed: Set<string>,
+  ): TreeNode[] {
+    const fresh: TreeNode[] = [];
     for (const entry of entries) {
       if (!entry.name || entry.name.includes("/")) continue;
       const path = join(node.path, entry.name);
@@ -250,21 +335,33 @@ export class Tree {
       if (existing && existing.kind === entry.kind) {
         existing.pending = false;
         existing.ignored = entry.ignored === true;
-      } else {
-        if (existing) this.detach(path);
-        const created = this.makeNode(path, entry.name, entry.kind, node.path);
-        created.ignored = entry.ignored === true;
-        this.nodes.set(path, created);
+        continue;
       }
-      next.push(path);
+      if (existing) this.detach(path);
+      const created = this.makeNode(path, entry.name, entry.kind, node.path);
+      created.ignored = entry.ignored === true;
+      this.nodes.set(path, created);
+      fresh.push(created);
     }
-    for (const old of node.children ?? []) {
+    return fresh;
+  }
+
+  private prune(node: TreeNode, listed: Set<string>): void {
+    for (const old of [...(node.children ?? [])]) {
       if (listed.has(old)) continue;
-      const kept = this.nodes.get(old);
-      if (kept?.pending) next.push(old);
-      else if (kept) this.detach(old);
+      if (!this.nodes.get(old)?.pending) this.detach(old);
     }
-    node.children = next;
+  }
+
+  private reconcile(
+    node: TreeNode,
+    entries: { name: string; kind: EntryKind; ignored?: boolean }[],
+  ): void {
+    const listed = new Set<string>();
+    const fresh = this.absorb(node, entries, listed);
+    const kept = (node.children ?? []).filter((path) => this.nodes.has(path));
+    node.children = [...kept, ...fresh.map((child) => child.path)];
+    this.prune(node, listed);
     this.sortChildren(node);
   }
 
@@ -286,8 +383,7 @@ export class Tree {
     const nodes = this.subtree(path);
     const expanded = nodes.filter((n) => this.expandedSet.has(n.path)).map((n) => n.path);
     const parent = node.parent ?? this.root;
-    const holder = this.nodes.get(parent);
-    if (holder?.children) holder.children = holder.children.filter((child) => child !== path);
+    this.removeChild(this.nodes.get(parent), path);
     for (const removed of nodes) {
       this.nodes.delete(removed.path);
       this.expandedSet.delete(removed.path);
@@ -310,18 +406,14 @@ export class Tree {
     for (const node of snapshot.nodes) this.nodes.set(node.path, node);
     for (const path of snapshot.expanded) this.expandedSet.add(path);
     const top = snapshot.nodes[0];
-    if (holder && top) {
-      holder.children = [...(holder.children ?? []), top.path];
-      this.sortChildren(holder);
-    }
+    if (holder && top) this.insertSorted(holder, top);
   }
 
   private insert(parent: TreeNode, name: string, kind: EntryKind, pending = false): TreeNode {
     const path = join(parent.path, name);
     const node = this.makeNode(path, name, kind, parent.path, pending);
     this.nodes.set(path, node);
-    parent.children = [...(parent.children ?? []), path];
-    this.sortChildren(parent);
+    this.insertSorted(parent, node);
     return node;
   }
 
@@ -333,8 +425,7 @@ export class Tree {
     const wasSelected = nodes.filter((n) => this.selectedSet.has(n.path)).map((n) => n.path);
     const focus = this.focusedPath;
     if (!node) return false;
-    const source = this.nodes.get(node.parent ?? this.root);
-    if (source?.children) source.children = source.children.filter((child) => child !== from);
+    this.removeChild(this.nodes.get(node.parent ?? this.root), from);
     for (const moved of nodes) {
       this.nodes.delete(moved.path);
       this.expandedSet.delete(moved.path);
@@ -356,8 +447,7 @@ export class Tree {
     for (const path of wasExpanded) this.expandedSet.add(replacePrefix(path, from, to));
     for (const path of wasSelected) this.selectedSet.add(replacePrefix(path, from, to));
     if (focus && isWithin(from, focus)) this.focusedPath = replacePrefix(focus, from, to);
-    destination.children = [...(destination.children ?? []), to];
-    this.sortChildren(destination);
+    this.insertSorted(destination, node);
     this.rekeyGit(from, to);
     return true;
   }
@@ -434,10 +524,20 @@ export class Tree {
     this.flushScheduled = false;
     if (this.disposed || this.editing || this.queue.length === 0) return;
     const events = coalesce(this.queue.splice(0));
+    const selected = this.selectionKey();
     let structural = false;
     for (const event of events) structural = this.apply(event) || structural;
     if (structural) this.bump();
+    this.announceSelection(selected);
     this.emit("watched", undefined);
+  }
+
+  private selectionKey(): string {
+    return this.selectedSet.size === 0 ? "" : [...this.selectedSet].join("\0");
+  }
+
+  private announceSelection(before: string): void {
+    if (this.selectionKey() !== before) this.emit("select", { paths: this.selection() });
   }
 
   report(error: TreeError): void {
@@ -490,6 +590,7 @@ export class Tree {
     for (const dir of dirs) {
       if (dir.path === path || dir.path === this.root || this.expandedSet.has(dir.path)) {
         if (dir.state === "unloaded") continue;
+        if (this.inflight.has(dir.path)) this.rerun.add(dir.path);
         reload.push(this.load(dir.path));
       } else if (dir.children) {
         for (const child of [...dir.children]) this.detach(child);
@@ -576,7 +677,7 @@ export class Tree {
     const rows: Row[] = [];
     const rootNode = this.nodes.get(this.root);
     if (rootNode) this.walk(this.topLevel(rootNode, new Map()), 0, rows, new Map());
-    this.cache = { version: this.version, rows };
+    this.cache = { version: this.version, rows, index: null };
     return rows;
   }
 
@@ -647,12 +748,22 @@ export class Tree {
   }
 
   rowIndex(path: string): number {
-    return this.rows().findIndex((row) => row.chain.some((node) => node.path === path));
+    const rows = this.rows();
+    const cache = this.cache;
+    if (!cache) return -1;
+    if (!cache.index) {
+      const index = new Map<string, number>();
+      rows.forEach((row, at) => {
+        for (const node of row.chain) index.set(node.path, at);
+      });
+      cache.index = index;
+    }
+    return cache.index.get(path) ?? -1;
   }
 
   focus(path: string | null, options: { scroll?: boolean } = {}): void {
     this.focusedPath = path;
-    this.bump();
+    this.touch();
     if (path && options.scroll !== false) this.emit("scroll", { path });
   }
 
@@ -675,7 +786,7 @@ export class Tree {
       this.selectedSet.add(path);
       this.anchor = path;
     }
-    this.bump();
+    this.touch();
     this.emit("select", { paths: this.selection() });
   }
 
@@ -683,14 +794,14 @@ export class Tree {
     this.selectedSet.clear();
     for (const path of paths) if (this.nodes.has(path)) this.selectedSet.add(path);
     this.anchor = paths[paths.length - 1] ?? null;
-    this.bump();
+    this.touch();
     this.emit("select", { paths: this.selection() });
   }
 
   clearSelection(): void {
     if (this.selectedSet.size === 0) return;
     this.selectedSet.clear();
-    this.bump();
+    this.touch();
     this.emit("select", { paths: [] });
   }
 
@@ -769,7 +880,7 @@ export class Tree {
   }
 
   async startCreate(parent: string, kind: EntryKind): Promise<boolean> {
-    if (!this.can("create")) return this.fail("unsupported", parent, "this tree cannot create");
+    if (!this.can("create")) return this.refuse(parent, "create");
     const node = this.nodes.get(parent);
     if (node?.kind !== "dir") return this.fail("missing", parent, `${parent} is not a folder`);
     if (parent !== this.root && !(await this.expand(parent))) return false;
@@ -778,7 +889,7 @@ export class Tree {
   }
 
   startRename(path: string): boolean {
-    if (!this.can("rename")) return this.fail("unsupported", path, "this tree cannot rename");
+    if (!this.can("rename")) return this.refuse(path, "rename");
     if (!this.nodes.has(path) || path === this.root) {
       return this.fail("missing", path, `${path} is not in the tree`);
     }
@@ -788,7 +899,7 @@ export class Tree {
 
   private setEdit(edit: EditState | null): void {
     this.editing = edit;
-    this.bump();
+    this.touch();
     this.emit("edit", edit);
     if (!edit) this.scheduleFlush();
   }
@@ -821,7 +932,7 @@ export class Tree {
 
   async create(parentPath: string, name: string, kind: EntryKind): Promise<boolean> {
     const { create } = this.options.provider;
-    if (!create) return this.fail("unsupported", parentPath, "this tree cannot create");
+    if (!create || !this.can("create")) return this.refuse(parentPath, "create");
     const parent = this.nodes.get(parentPath);
     if (parent?.kind !== "dir") {
       return this.fail("missing", parentPath, `${parentPath} is not a folder`);
@@ -848,13 +959,13 @@ export class Tree {
 
   async rename(from: string, to: string): Promise<boolean> {
     const { rename } = this.options.provider;
-    if (!rename) return this.fail("unsupported", from, "this tree cannot rename");
+    if (!rename || !this.can("rename")) return this.refuse(from, "rename");
     return this.relocate("rename", from, to, () => rename.call(this.options.provider, from, to));
   }
 
   async move(from: string, toDir: string): Promise<boolean> {
     const { move, rename } = this.options.provider;
-    if (!move && !rename) return this.fail("unsupported", from, "this tree cannot move");
+    if (!this.can("move")) return this.refuse(from, "move");
     if (!isWithin(this.root, toDir)) return this.fail("outside-root", toDir, "outside the tree");
     if (toDir === from || isStrictlyWithin(from, toDir)) {
       return this.fail("move", from, "a folder cannot move into itself");
@@ -881,6 +992,10 @@ export class Tree {
       return this.fail("missing", from, `${from} is not in the tree`);
     }
     if (this.nodes.has(to)) return this.fail("exists", to, `${basename(to)} already exists there`);
+    const destination = this.nodes.get(dirname(to));
+    if (destination?.kind !== "dir" || destination.state !== "loaded") {
+      return this.fail("missing", to, "the destination is not loaded");
+    }
     if (!this.rekey(from, to)) return this.fail("missing", to, "the destination is not loaded");
     this.bump();
     try {
@@ -898,12 +1013,14 @@ export class Tree {
 
   async remove(path: string): Promise<boolean> {
     const { remove } = this.options.provider;
-    if (!remove) return this.fail("unsupported", path, "this tree cannot delete");
+    if (!remove || !this.can("remove")) return this.refuse(path, "delete");
     if (!this.nodes.has(path) || path === this.root) {
       return this.fail("missing", path, `${path} is not in the tree`);
     }
+    const selected = this.selectionKey();
     const snapshot = this.detach(path);
     this.bump();
+    this.announceSelection(selected);
     try {
       await remove.call(this.options.provider, path);
     } catch (cause) {
@@ -977,7 +1094,7 @@ export class Tree {
         else this.activate(row.node.path);
         return true;
       case "F2":
-        if (row) this.startRename(row.node.path);
+        if (row && !this.options.readOnly) this.startRename(row.node.path);
         return true;
       case "Delete":
         this.requestDelete();
@@ -990,7 +1107,10 @@ export class Tree {
         return Boolean(this.editing);
       case "*":
         if (!row) return true;
-        for (const sibling of rows.filter((r) => r.depth === row.depth && r.expandable)) {
+        const parent = row.chain[0]?.parent;
+        for (const sibling of rows.filter(
+          (r) => r.depth === row.depth && r.expandable && r.chain[0]?.parent === parent,
+        )) {
           void this.expand(sibling.id);
         }
         return true;

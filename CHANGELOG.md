@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.3.1
+
+Visual changes, a read only mode and large tree performance.
+
+- Rows are quieter. The indent is 4 px a level (was 16), folders draw no icon unless `folderIcons` is set, and the inherited status dot is gone: a folder is tinted by the strongest tone below it, from git or from `decorations` with a `tone`.
+- The status letter sits in one fixed column at the right edge (`--jft-status-width`), and the `row` slot is laid out just left of it, so host columns align.
+- `rowActions` draws plain icon buttons that are hidden at rest. On hover the status slides left to make room for them (`--jft-actions-width`, `--jft-slide`).
+- `readOnly`, on the component, `createTree` and `tree.configure`, refuses create, rename, move and delete, ignores F2 and Delete, stops dragging and dropping, and hides row actions. `tree.isReadOnly()` reads it back.
+- New `error` tone and `--jft-tone-error`. A decoration with the `error` tone beats git tones on the folders above it.
+- Performance on a folder of 100,000 files: loading is about ten times faster, a burst of 1,000 adds went from minutes to tens of milliseconds, and moving focus or selection no longer rebuilds the rows. Sorting uses one shared `Intl.Collator`, new entries are placed by binary search, and `rowIndex` is a map lookup.
+- `readDirPage` on a provider loads a big folder in pages. The first page shows at once, later pages are placed as they arrive and a stale entry is dropped when the last page lands.
+- Fixes: a rescan that arrives while a read is running now triggers one more read, a watched delete that removes a selected path emits `select`, a rename into a folder that is not loaded keeps the node and reports an error instead of dropping it, and `*` expands only the siblings of the focused row.
+
 ## 0.3.0
 
 - Trailing slashes are trimmed with a loop instead of a regular expression that backtracked quadratically on long runs of `/`.

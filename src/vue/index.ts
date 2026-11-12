@@ -5,6 +5,7 @@ export type {
   DragStartPayload,
   DropPayload,
   MenuEntry,
+  RowAction,
   ToolbarAction,
 } from "./types.js";
 export { PATHS_MIME } from "./types.js";
