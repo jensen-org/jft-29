@@ -1,6 +1,6 @@
 # Changelog
 
-## 0.4.0
+## 0.3.1
 
 Visual changes, a read only mode and large tree performance.
 
