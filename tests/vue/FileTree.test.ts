@@ -186,6 +186,34 @@ describe("<FileTree>", () => {
     expect(wrapper.find('[data-path="/p/src/a.ts"]').attributes("data-tone")).toBe("modified");
   });
 
+  it("tints files and their folders from problem counts, errors over warnings", async () => {
+    const problems = new Map([
+      ["/p/src/a.ts", { errors: 0, warnings: 2 }],
+      ["/p/src/deep/er/b.ts", { errors: 1, warnings: 3 }],
+    ]);
+    const { wrapper, tree } = await mounted({ problems });
+    await tree.reveal("/p/src/deep/er/b.ts");
+    await flushPromises();
+    expect(wrapper.find('[data-path="/p/src/deep/er/b.ts"]').attributes("data-tone")).toBe("error");
+    expect(wrapper.find('[data-path="/p/src/a.ts"]').attributes("data-tone")).toBe("warning");
+    expect(wrapper.find('[data-path="/p/src"]').attributes("data-tone")).toBe("error");
+  });
+
+  it("draws no problem tone when showProblems is false", async () => {
+    const problems = new Map([["/p/src/a.ts", { errors: 1, warnings: 0 }]]);
+    const { wrapper } = await mounted({ problems, showProblems: false });
+    expect(wrapper.find('[data-path="/p/src"]').attributes("data-tone")).toBeUndefined();
+  });
+
+  it("lets an explicit decoration win over a problem on the same path", async () => {
+    const problems = new Map([["/p/src/a.ts", { errors: 1, warnings: 0 }]]);
+    const decorations = new Map([["/p/src/a.ts", { tone: "modified" }]]);
+    const { wrapper, tree } = await mounted({ problems, decorations });
+    await tree.reveal("/p/src/a.ts");
+    await flushPromises();
+    expect(wrapper.find('[data-path="/p/src/a.ts"]').attributes("data-tone")).toBe("modified");
+  });
+
   it("indents each level by the indent prop", async () => {
     const { wrapper, tree } = await mounted({ indent: 8 });
     await tree.reveal("/p/src/a.ts");

@@ -233,7 +233,7 @@ plugin's `extensions` and `fileNames` options for anything project specific.
 
 ## Component reference
 
-**Props:** `tree`, `provider`, `root`, `iconTheme`, `iconUrl`, `iconVariant`, `decorations`, `filter`, `sort`,
+**Props:** `tree`, `provider`, `root`, `iconTheme`, `iconUrl`, `iconVariant`, `decorations`, `problems`, `showProblems`, `filter`, `sort`,
 `nest`, `plugins`, `compactFolders`, `multiSelect`, `readOnly`, `followActive`, `activePath`, `actions`, `rowActions`,
 `menu`, `folderIcons`, `rowHeight`, `indent` (4 px a level), `label`.
 
@@ -243,6 +243,8 @@ plugin's `extensions` and `fileNames` options for anything project specific.
 **Slots:** `toolbar`, `leading`, `icon`, `badge`, `row`, `edit-input`, `empty`, `error`.
 
 **Exposed:** `tree`, `scrollToPath`, `focus`.
+
+`problems` is a `Map<path, { errors, warnings }>`, fed by whatever produces diagnostics (a language server, a linter). A file with errors takes the `error` tone and a file with only warnings the `warning` tone, with a "2 errors" style hint on the `badge` slot, and every folder above it takes the strongest tone below it. `showProblems` (default `true`) turns the tint off without clearing the map, so a host setting can hide it. A decoration on the same path wins over a problem.
 
 `decorations` is a `Map<path, { badge, tone, hint }>`, for problems or anything else that is not git. A decoration with a `tone` tints every folder above it in the strongest tone below it (`error` beats git
 statuses, which beat `info`) unless `propagate` is `false`, and a decoration wins over a git badge on the same path.
