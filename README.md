@@ -234,8 +234,8 @@ plugin's `extensions` and `fileNames` options for anything project specific.
 ## Component reference
 
 **Props:** `tree`, `provider`, `root`, `iconTheme`, `iconUrl`, `iconVariant`, `decorations`, `filter`, `sort`,
-`nest`, `plugins`, `compactFolders`, `multiSelect`, `followActive`, `activePath`, `actions`, `menu`, `rowHeight`,
-`indent`, `label`.
+`nest`, `plugins`, `compactFolders`, `multiSelect`, `readOnly`, `followActive`, `activePath`, `actions`, `rowActions`,
+`menu`, `folderIcons`, `rowHeight`, `indent` (4 px a level), `label`.
 
 **Events:** `open`, `select`, `contextmenu`, `error`, `dragstart`, `drop`, `created`, `renamed`, `moved`,
 `removed`, `deleteRequest`, `changed`.
@@ -244,14 +244,25 @@ plugin's `extensions` and `fileNames` options for anything project specific.
 
 **Exposed:** `tree`, `scrollToPath`, `focus`.
 
-`decorations` is a `Map<path, { badge, tone, hint }>`, for problems or anything else that is not git. A decorated
-file puts a dot on every folder above it, and a decoration wins over a git badge on the same path. The library sets no native `title` attributes, so you attach tooltips from
+`decorations` is a `Map<path, { badge, tone, hint }>`, for problems or anything else that is not git. A decoration with a `tone` tints every folder above it in the strongest tone below it (`error` beats git
+statuses, which beat `info`) unless `propagate` is `false`, and a decoration wins over a git badge on the same path.
+There are no dots: the colored name is the signal. Folders draw no icon unless `folderIcons` is set. The status
+letter sits in one fixed column at the right edge, and the `row` slot is laid out just left of it, so host columns
+line up from row to row. The library sets no native `title` attributes except on `rowActions`, so you attach tooltips from
 the `badge` slot. `contextmenu` hands you the event and the selected paths, and you render the menu. Deleting is a
 request: confirm it, then call `tree.remove(path)`. The toolbar renders only when you pass `actions`, `menu` or a
 `toolbar` slot, and there is no built in title.
 
+`rowActions` is a list of `{ id, label, icon, run(node), when?(node), danger? }`. They are plain icon buttons, hidden
+at rest. On hover the status letter slides left to make room for them (`--jft-actions-width`, `--jft-slide`).
+
+`readOnly` (also `createTree({ readOnly })` and `tree.configure({ readOnly })`) turns the tree into a viewer:
+create, rename, move and delete are refused with a `TreeError` (`unsupported`, "this tree is read only"), F2 and
+Delete do nothing, rows are not draggable, drops are ignored, `rowActions` are not drawn and the tree label gets
+"(read only)". Selection, keyboard navigation, expand and `open` still work.
+
 Theme with CSS variables: `--jft-fg`, `--jft-fg-muted`, `--jft-hover`, `--jft-selected`, `--jft-focus`,
-`--jft-border`, `--jft-font` and the `--jft-tone-*` set.
+`--jft-border`, `--jft-font`, `--jft-status-width` and the `--jft-tone-*` set (including `--jft-tone-error`).
 
 Light and dark colors follow the CSS `color-scheme` of the page, through `light-dark()`, not the operating system
 preference. Set `color-scheme: light dark` on `:root` to follow the system, or `light` or `dark` on any parent to

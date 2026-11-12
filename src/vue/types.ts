@@ -1,4 +1,5 @@
 import type { Component } from "vue";
+import type { TreeNode } from "../core/types.js";
 
 export interface Decoration {
   badge?: string;
@@ -14,6 +15,15 @@ export interface ToolbarAction {
   run: () => void;
   when?: () => boolean;
   disabled?: () => boolean;
+}
+
+export interface RowAction {
+  id: string;
+  label: string;
+  icon: Component;
+  danger?: boolean;
+  run: (node: TreeNode) => void;
+  when?: (node: TreeNode) => boolean;
 }
 
 export interface MenuEntry {

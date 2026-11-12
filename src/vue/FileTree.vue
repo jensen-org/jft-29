@@ -21,6 +21,7 @@ import {
   type DropPayload,
   type MenuEntry,
   PATHS_MIME,
+  type RowAction,
   type ToolbarAction,
 } from "./types.js";
 
@@ -43,11 +44,14 @@ const props = withDefaults(
     activePath?: string | null;
     actions?: ToolbarAction[];
     menu?: MenuEntry[];
+    rowActions?: RowAction[];
+    readOnly?: boolean;
+    folderIcons?: boolean;
     rowHeight?: number;
     indent?: number;
     label?: string;
   }>(),
-  { rowHeight: 24, indent: 16, label: "Files", iconVariant: "dark" },
+  { rowHeight: 24, indent: 4, label: "Files", iconVariant: "dark" },
 );
 
 const emit = defineEmits<{
@@ -135,6 +139,7 @@ watch(
       ...(props.plugins ? { plugins: props.plugins } : {}),
       compactFolders: props.compactFolders ?? false,
       multiSelect: props.multiSelect ?? false,
+      readOnly: props.readOnly ?? false,
     });
     owned = created;
     attach(created);
@@ -148,8 +153,16 @@ watch(
 );
 
 watch(
-  () => [props.filter, props.sort, props.nest, props.compactFolders, props.multiSelect] as const,
-  ([filter, sort, nest, compactFolders, multiSelect]) => {
+  () =>
+    [
+      props.filter,
+      props.sort,
+      props.nest,
+      props.compactFolders,
+      props.multiSelect,
+      props.readOnly,
+    ] as const,
+  ([filter, sort, nest, compactFolders, multiSelect, readOnly]) => {
     if (!owned) return;
     owned.configure({
       filter,
@@ -157,6 +170,7 @@ watch(
       nest,
       compactFolders: compactFolders ?? false,
       multiSelect: multiSelect ?? false,
+      readOnly: readOnly ?? false,
     });
   },
 );
@@ -212,16 +226,61 @@ const resolver = computed(() =>
   props.iconTheme ? createIconResolver(props.iconTheme, props.iconVariant) : null,
 );
 
-const inherited = computed(() => {
-  const marked = new Set<string>();
+const TONE_RANK = [
+  "error",
+  "conflicted",
+  "deleted",
+  "removed",
+  "modified",
+  "added",
+  "renamed",
+  "untracked",
+  "info",
+];
+
+function rankOf(tone: string): number {
+  const at = TONE_RANK.indexOf(tone);
+  return at === -1 ? TONE_RANK.length : at;
+}
+
+function strongest(first: string | undefined, second: string | undefined): string | undefined {
+  if (!first || !second) return first ?? second;
+  return rankOf(second) < rankOf(first) ? second : first;
+}
+
+const inheritedTones = computed(() => {
+  const tones = new Map<string, string>();
   const current = tree.value;
-  if (!current || !props.decorations) return marked;
+  if (!current || !props.decorations) return tones;
   for (const [path, decoration] of props.decorations) {
-    if (decoration.propagate === false) continue;
-    for (const ancestor of ancestorsBetween(current.root, path)) marked.add(ancestor);
+    if (decoration.propagate === false || !decoration.tone) continue;
+    for (const ancestor of ancestorsBetween(current.root, path)) {
+      const winner = strongest(tones.get(ancestor), decoration.tone);
+      if (winner) tones.set(ancestor, winner);
+    }
   }
-  return marked;
+  return tones;
 });
+
+const readOnly = computed(() => {
+  void version.value;
+  return tree.value?.isReadOnly() ?? false;
+});
+
+const treeLabel = computed(() => (readOnly.value ? `${props.label} (read only)` : props.label));
+
+function rowActionsFor(row: Row): RowAction[] {
+  if (readOnly.value) return [];
+  return (props.rowActions ?? []).filter((action) => action.when?.(row.node) ?? true);
+}
+
+const createdAt = computed(() => entries.value.findIndex((entry) => entry.create));
+
+function entryIndex(path: string): number {
+  const at = tree.value?.rowIndex(path) ?? -1;
+  if (at === -1) return -1;
+  return createdAt.value !== -1 && at >= createdAt.value ? at + 1 : at;
+}
 
 const visibleIndexes = computed(() => {
   const total = entries.value.length;
@@ -233,20 +292,15 @@ const visibleIndexes = computed(() => {
       : Math.min(total, first + UNMEASURED_ROWS);
   const indexes: number[] = [];
   for (let i = first; i < last; i += 1) indexes.push(i);
-  const focused = tree.value?.focused();
-  if (focused) {
-    const at = entries.value.findIndex((entry) =>
-      entry.row?.chain.some((node) => node.path === focused),
-    );
-    if (at !== -1 && (at < first || at >= last)) indexes.push(at);
-  }
+  const at = focusedIndex.value;
+  if (at !== -1 && (at < first || at >= last)) indexes.push(at);
   return indexes;
 });
 
 const focusedIndex = computed(() => {
+  void version.value;
   const focused = tree.value?.focused();
-  if (!focused) return -1;
-  return entries.value.findIndex((entry) => entry.row?.chain.some((node) => node.path === focused));
+  return focused ? entryIndex(focused) : -1;
 });
 
 const activeDescendant = computed(() =>
@@ -320,15 +374,13 @@ function toneOf(row: Row): string | undefined {
   const decorated = props.decorations?.get(row.node.path)?.tone;
   if (decorated) return decorated;
   if (row.ignored) return "ignored";
-  return row.status ?? row.inherited ?? undefined;
+  if (row.status) return row.status;
+  if (row.node.kind !== "dir") return undefined;
+  return strongest(row.inherited ?? undefined, inheritedTones.value.get(row.node.path));
 }
 
 function gitLetter(row: Row): string | undefined {
   return row.status ? GIT_LETTERS[row.status] : undefined;
-}
-
-function hasDot(row: Row): boolean {
-  return row.node.kind === "dir" && (row.inherited !== null || inherited.value.has(row.node.path));
 }
 
 function measure(): void {
@@ -343,7 +395,7 @@ function onScroll(): void {
 function scrollToPath(path: string, mode: "nearest" | "center"): void {
   void nextTick(() => {
     const el = body.value;
-    const at = entries.value.findIndex((entry) => entry.row?.chain.some((n) => n.path === path));
+    const at = entryIndex(path);
     if (!el || at === -1) return;
     const top = at * props.rowHeight;
     const bottom = top + props.rowHeight;
@@ -418,6 +470,10 @@ function onContext(event: MouseEvent, row: Row | null): void {
 function onDragStart(event: DragEvent, row: Row): void {
   const current = tree.value;
   if (!current || !event.dataTransfer) return;
+  if (readOnly.value) {
+    event.preventDefault();
+    return;
+  }
   const paths = selected.value.has(row.node.path) ? current.selection() : [row.node.path];
   dragging.value = paths;
   event.dataTransfer.setData(PATHS_MIME, JSON.stringify(paths));
@@ -439,6 +495,7 @@ function acceptsDrop(target: string): boolean {
 }
 
 function onDragOver(event: DragEvent, row: Row | null): void {
+  if (readOnly.value) return;
   const target = dropDirFor(row);
   const internal = event.dataTransfer?.types.includes(PATHS_MIME) ?? false;
   if (internal && !acceptsDrop(target)) return;
@@ -465,7 +522,7 @@ async function onDrop(event: DragEvent, row: Row | null): Promise<void> {
   const target = dropDirFor(row);
   dropTarget.value = null;
   if (hoverTimer) clearTimeout(hoverTimer);
-  if (!current) return;
+  if (!current || readOnly.value) return;
   event.preventDefault();
   const internal = event.dataTransfer?.types.includes(PATHS_MIME) ?? false;
   if (!internal) {
@@ -596,7 +653,8 @@ defineExpose({ tree, scrollToPath, focus });
       class="jft-body"
       role="tree"
       tabindex="0"
-      :aria-label="label"
+      :aria-label="treeLabel"
+      :data-readonly="readOnly || undefined"
       :aria-multiselectable="multiSelect || undefined"
       :aria-activedescendant="activeDescendant"
       :aria-busy="rootState === 'loading' || undefined"
@@ -667,7 +725,7 @@ defineExpose({ tree, scrollToPath, focus });
             :data-tone="toneOf(entries[index]!.row!)"
             :data-staged="entries[index]!.row!.staged || undefined"
             :data-ignored="entries[index]!.row!.ignored || undefined"
-            :draggable="true"
+            :draggable="!readOnly"
             :style="{
               top: `${index * rowHeight}px`,
               height: `${rowHeight}px`,
@@ -697,7 +755,11 @@ defineExpose({ tree, scrollToPath, focus });
                 <path d="M3 1.5 7 5 3 8.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round" />
               </svg>
             </span>
-            <span class="jft-icon" aria-hidden="true">
+            <span
+              v-if="entries[index]!.row!.node.kind === 'file' || folderIcons"
+              class="jft-icon"
+              aria-hidden="true"
+            >
               <slot
                 name="icon"
                 :row="entries[index]!.row!"
@@ -734,47 +796,61 @@ defineExpose({ tree, scrollToPath, focus });
                 </template>
               </span>
               <span v-if="entries[index]!.row!.loading" class="jft-spinner" aria-hidden="true" />
-              <slot
-                v-if="decorations?.get(entries[index]!.row!.node.path)?.badge"
-                name="badge"
-                :node="entries[index]!.row!.node"
-                :decoration="decorations!.get(entries[index]!.row!.node.path)!"
-              >
-                <span
-                  class="jft-badge"
-                  :data-tone="decorations!.get(entries[index]!.row!.node.path)!.tone"
-                  :aria-label="decorations!.get(entries[index]!.row!.node.path)!.hint"
-                >
-                  {{ decorations!.get(entries[index]!.row!.node.path)!.badge }}
+              <span class="jft-trailing">
+                <slot
+                  name="row"
+                  :row="entries[index]!.row!"
+                  :node="entries[index]!.row!.node"
+                  :selected="selected.has(entries[index]!.row!.node.path)"
+                />
+                <span class="jft-status">
+                  <slot
+                    v-if="decorations?.get(entries[index]!.row!.node.path)?.badge"
+                    name="badge"
+                    :node="entries[index]!.row!.node"
+                    :decoration="decorations!.get(entries[index]!.row!.node.path)!"
+                  >
+                    <span
+                      class="jft-badge"
+                      :data-tone="decorations!.get(entries[index]!.row!.node.path)!.tone"
+                      :aria-label="decorations!.get(entries[index]!.row!.node.path)!.hint"
+                    >
+                      {{ decorations!.get(entries[index]!.row!.node.path)!.badge }}
+                    </span>
+                  </slot>
+                  <slot
+                    v-else-if="gitLetter(entries[index]!.row!)"
+                    name="badge"
+                    :node="entries[index]!.row!.node"
+                    :status="entries[index]!.row!.status!"
+                    :staged="entries[index]!.row!.staged"
+                  >
+                    <span
+                      class="jft-badge"
+                      :data-tone="entries[index]!.row!.status!"
+                      :aria-label="entries[index]!.row!.status!"
+                    >
+                      {{ gitLetter(entries[index]!.row!) }}
+                    </span>
+                  </slot>
                 </span>
-              </slot>
-              <slot
-                v-else-if="gitLetter(entries[index]!.row!)"
-                name="badge"
-                :node="entries[index]!.row!.node"
-                :status="entries[index]!.row!.status!"
-                :staged="entries[index]!.row!.staged"
-              >
-                <span
-                  class="jft-badge"
-                  :data-tone="entries[index]!.row!.status!"
-                  :aria-label="entries[index]!.row!.status!"
-                >
-                  {{ gitLetter(entries[index]!.row!) }}
+                <span v-if="rowActionsFor(entries[index]!.row!).length" class="jft-actions">
+                  <button
+                    v-for="action in rowActionsFor(entries[index]!.row!)"
+                    :key="action.id"
+                    type="button"
+                    class="jft-row-action"
+                    tabindex="-1"
+                    :data-danger="action.danger || undefined"
+                    :aria-label="`${action.label} ${entries[index]!.row!.node.name}`"
+                    :title="action.label"
+                    @click.stop="action.run(entries[index]!.row!.node)"
+                    @dblclick.stop
+                  >
+                    <component :is="action.icon" />
+                  </button>
                 </span>
-              </slot>
-              <span
-                v-else-if="hasDot(entries[index]!.row!)"
-                class="jft-dot"
-                :data-tone="entries[index]!.row!.inherited ?? 'modified'"
-                aria-hidden="true"
-              />
-              <slot
-                name="row"
-                :row="entries[index]!.row!"
-                :node="entries[index]!.row!.node"
-                :selected="selected.has(entries[index]!.row!.node.path)"
-              />
+              </span>
             </template>
           </div>
         </template>

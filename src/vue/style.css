@@ -19,6 +19,7 @@
   --jft-tone-ignored: light-dark(#8c959f, #6e7681);
   --jft-ignored-opacity: 0.55;
   --jft-tone-info: light-dark(#0969da, #58a6ff);
+  --jft-tone-error: light-dark(#cf222e, #f85149);
   display: flex;
   flex-direction: column;
   min-height: 0;
@@ -223,11 +224,72 @@
   color: var(--jft-fg-muted);
 }
 
-.jft-badge {
+.jft-trailing {
+  display: flex;
   flex: none;
-  padding: 0 6px;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 6px;
+  padding-right: 8px;
+}
+
+.jft-status {
+  display: inline-flex;
+  flex: none;
+  justify-content: flex-end;
+  width: var(--jft-status-width, 16px);
+}
+
+.jft-badge {
   font-size: 11px;
   font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.jft-actions {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  max-width: 0;
+  overflow: hidden;
+  opacity: 0;
+  transition:
+    max-width var(--jft-slide, 140ms) ease-out,
+    opacity var(--jft-slide, 140ms) ease-out;
+}
+
+.jft-row:hover .jft-actions,
+.jft-row[data-focused="true"] .jft-actions {
+  max-width: var(--jft-actions-width, 48px);
+  opacity: 1;
+}
+
+.jft-row-action {
+  display: inline-flex;
+  flex: none;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  padding: 0;
+  border: 0;
+  border-radius: 0;
+  background: none;
+  color: var(--jft-fg-muted);
+  cursor: pointer;
+}
+
+.jft-row-action svg {
+  width: 14px;
+  height: 14px;
+}
+
+.jft-row-action:hover {
+  color: var(--jft-fg);
+}
+
+.jft-row-action[data-danger="true"]:hover {
+  color: var(--jft-tone-error);
 }
 
 .jft-badge[data-tone="added"],
@@ -273,33 +335,9 @@
   color: var(--jft-tone-info);
 }
 
-.jft-dot {
-  flex: none;
-  width: 6px;
-  height: 6px;
-  margin-right: 8px;
-  border-radius: 50%;
-  background: var(--jft-tone-modified);
-}
-
-.jft-dot[data-tone="added"] {
-  background: var(--jft-tone-added);
-}
-
-.jft-dot[data-tone="deleted"] {
-  background: var(--jft-tone-deleted);
-}
-
-.jft-dot[data-tone="untracked"] {
-  background: var(--jft-tone-untracked);
-}
-
-.jft-dot[data-tone="renamed"] {
-  background: var(--jft-tone-renamed);
-}
-
-.jft-dot[data-tone="conflicted"] {
-  background: var(--jft-tone-conflicted);
+.jft-badge[data-tone="error"],
+.jft-label[data-tone="error"] {
+  color: var(--jft-tone-error);
 }
 
 .jft-spinner {
@@ -324,7 +362,8 @@
     animation: none;
   }
 
-  .jft-twist {
+  .jft-twist,
+  .jft-actions {
     transition: none;
   }
 }
